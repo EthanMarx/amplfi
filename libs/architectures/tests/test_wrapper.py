@@ -65,7 +65,7 @@ def test_maf_wrappers():
             "--learning-rate",
             "1e-3",
             name,
-            "--num-transforms",
+            "--num-flow-steps",
             "5",
             "--num-blocks",
             "3",

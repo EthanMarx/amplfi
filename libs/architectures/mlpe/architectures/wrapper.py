@@ -19,6 +19,7 @@ def get_arch_fn(name: str, fn, fn_kwargs={}):
         # pass the function to `fn` as a kwarg,
         # then run `fn` with all the passed kwargs.
         fn_kwargs["architecture"] = get_arch
+
         return fn(**fn_kwargs)
 
     return arch_fn

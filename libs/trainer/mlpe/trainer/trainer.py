@@ -106,6 +106,8 @@ def train(
     train_dataset: Iterable[Tuple[np.ndarray, np.ndarray]],
     valid_dataset: Iterable[Tuple[np.ndarray, np.ndarray]] = None,
     preprocessor: Optional[torch.nn.Module] = None,
+    # additional network params
+    embedding_net: Optional[torch.nn.Module] = None,
     # optimization params
     max_epochs: int = 40,
     init_weights: Optional[Path] = None,
@@ -113,7 +115,7 @@ def train(
     optimizer_fn: Callable = torch.optim.Adam,
     optimizer_kwargs: dict = dict(weight_decay=0),
     scheduler_fn: Callable = torch.optim.lr_scheduler.CosineAnnealingLR,
-    scheduler_kwargs: dict = dict(eta_min=1e-5, T_max=10000),
+    scheduler_kwargs: dict = dict(eta_min=1e-5, T_max=300 * 200),
     early_stop: Optional[int] = None,
     # misc params
     device: Optional[str] = None,
@@ -197,12 +199,18 @@ def train(
     # Creating model, loss function, optimizer and lr scheduler
     logging.info("Building and initializing model")
 
-    # instantiate the architecture
+    # instantiate the architecture build the flow,
+    # manually set the embedding net, and send to gpu
+
+    # TODO: when this typeo issue
+    # https://github.com/ML4GW/typeo/issues/8 is resolved
+    # we can allow the embedding networks kwargs to be exposed
+    # to the command line as well
     flow_obj = architecture((param_dim, n_ifos, strain_dim))
-    # build the flow
+    flow_obj.embedding_net = embedding_net
     flow_obj.build_flow()
-    # send to neural net to device
     flow_obj.to_device(device)
+
     # if we passed a module for preprocessing,
     # include it in the model so that the weights
     # get exported along with everything else
@@ -228,7 +236,16 @@ def train(
     optimizer = optimizer_fn(
         flow_obj.flow.parameters(), lr=lr, **optimizer_kwargs
     )
-    lr_scheduler = scheduler_fn(optimizer, **scheduler_kwargs)
+    # lr_scheduler = scheduler_fn(optimizer, **scheduler_kwargs)
+    lr_ramp_epochs = int(0.3 * max_epochs)
+    lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=1.7e-4,
+        epochs=max_epochs,
+        pct_start=lr_ramp_epochs / max_epochs,
+        steps_per_epoch=len(train_dataset),
+        anneal_strategy="cos",
+    )
 
     # start training
     torch.backends.cudnn.benchmark = True
@@ -268,7 +285,7 @@ def train(
             scaler,
             lr_scheduler,
         )
-
+        print(train_loss, valid_loss, epoch, lr_scheduler.get_last_lr())
         history["train_loss"].append(train_loss.cpu().item())
 
         # do some house cleaning with our

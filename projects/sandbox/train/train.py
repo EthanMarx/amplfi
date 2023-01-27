@@ -3,6 +3,7 @@ from typing import List, Optional
 
 import h5py
 import numpy as np
+from mlpe.architectures.embeddings import DenseEmbedding
 from mlpe.data.dataloader import PEInMemoryDataset
 from mlpe.data.transforms import Preprocessor, StandardScalerTransform
 from mlpe.logging import configure_logging
@@ -148,4 +149,15 @@ def main(
             device,
         )
 
-    return train_dataset, valid_dataset, preprocessor
+    # construct embedding network that will be used
+    # to lower the dimensionality of the strain data
+    # before passing it to the inference network
+    n_samples = int((kernel_length - fduration) * sample_rate)
+    embedding_net = DenseEmbedding(
+        in_features=n_samples,
+        out_features=128,
+        n_channels=len(ifos),
+        hidden_layer_size=100,
+        num_hidden_layers=3,
+    )
+    return train_dataset, valid_dataset, preprocessor, embedding_net

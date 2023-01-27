@@ -24,7 +24,12 @@ def _configure_wrapper(f, wrapper):
     for param in train_sig.parameters.values():
         if (
             param.name
-            not in ("train_dataset", "valid_dataset", "architecture")
+            not in (
+                "train_dataset",
+                "valid_dataset",
+                "architecture",
+                "embedding_net",
+            )
             and param.name not in f_sig.parameters
         ):
             parameters.append(param)
@@ -70,9 +75,11 @@ def trainify(f, return_result: bool = False):
 
     def wrapper(*args, **kwargs):
         # use the passed function `f` to return data files
-        # f returns training and validation
-        # glitch, signal and background dataset files
-        train_dataset, valid_dataset, preprocessor = f(*args, **kwargs)
+        # f returns training and validation datasets, a preprocessor, and
+        # an embedding network
+        train_dataset, valid_dataset, preprocessor, embedding_net = f(
+            *args, **kwargs
+        )
 
         # pass any args passed to this wrapper that
         # `train` needs into the `train_kwargs` dictionary
@@ -89,6 +96,7 @@ def trainify(f, return_result: bool = False):
         train_kwargs["train_dataset"] = train_dataset
         train_kwargs["valid_dataset"] = valid_dataset
         train_kwargs["preprocessor"] = preprocessor
+        train_kwargs["embedding_net"] = embedding_net
 
         # allow wrapper functionality to be utilized if
         # `f` is called with an "arch" parameter
@@ -117,7 +125,7 @@ def trainify(f, return_result: bool = False):
         else:
             # otherwise just return the train and valid datasets, equivalent
             # to running `f` without any wrapper functionality
-            result = train_dataset, valid_dataset, preprocessor
+            result = train_dataset, valid_dataset, preprocessor, embedding_net
 
         return result
 

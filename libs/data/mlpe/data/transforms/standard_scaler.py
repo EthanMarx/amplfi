@@ -21,7 +21,7 @@ class StandardScalerTransform(Transform):
         self.set_value(self.mean, X.mean(axis=0))
         self.set_value(self.std, X.std(axis=0))
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+    def forward(self, X: torch.Tensor, reverse: bool = False) -> torch.Tensor:
         if X.ndim != 2 or X.shape[1] != len(self.mean):
             raise ValueError(
                 "Can't transform tensor of shape {}"
@@ -29,6 +29,8 @@ class StandardScalerTransform(Transform):
                     X.shape, len(self.mean)
                 )
             )
-
-        X = (X - self.mean) / self.std
+        if not reverse:
+            X = (X - self.mean) / self.std
+        else:
+            X = X * self.std + self.mean
         return X

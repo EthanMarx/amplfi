@@ -9,11 +9,15 @@ packages = [{include = "mlpe"}]
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
 nflows = "^0.14"
-torch = "^1.0"
+torch = {version = "^1.10", source = "torch"}
 typeo = {git = "https://github.com/ML4GW/typeo.git", branch = "main", optional = true}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.1.3"
+
+[[tool.poetry.source]]
+name = "torch"
+url = "https://download.pytorch.org/whl/cpu"
 
 [tool.poetry.extras]
 wrapper = ["typeo"]
