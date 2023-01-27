@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Callable, Tuple
 
 import torch
-from mlpe.architectures.embeddings import NChannelDenseEmbedding
+from mlpe.architectures.embeddings import Flattener
 from mlpe.architectures.flows.flow import NormalizingFlow
 from nflows.distributions import StandardNormal
 from nflows.flows import Flow
@@ -15,6 +15,8 @@ from nflows.transforms.autoregressive import (
 @dataclass
 class MaskedAutoRegressiveFlow(NormalizingFlow):
     shape: Tuple[int, int, int]
+    num_flow_steps: int
+    embedding_net: torch.nn.Module = Flattener()
     num_transforms: int = 10
     hidden_features: int = 50
     num_blocks: int = 2
@@ -24,21 +26,12 @@ class MaskedAutoRegressiveFlow(NormalizingFlow):
 
     def __post_init__(self):
         self.param_dim, self.n_ifos, self.strain_dim = self.shape
-        # FIXME: port to project config; remove hardcoding
-        self.embedding_net = NChannelDenseEmbedding(
-            self.n_ifos,
-            self.strain_dim,
-            50,
-            activation=self.activation,
-            hidden_layer_size=100,
-            num_hidden_layers=2,
-        )
 
         super().__init__(
             self.param_dim,
             self.n_ifos,
             self.strain_dim,
-            num_flow_steps=self.num_transforms,
+            num_flow_steps=self.num_flow_steps,
             embedding_net=self.embedding_net,
         )
 

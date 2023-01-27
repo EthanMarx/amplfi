@@ -1,6 +1,2 @@
-from .convolution import (
-    Conv1dEmbedding,
-    DenseEmbedding,
-    NChannelDenseEmbedding,
-)
+from .dense import DenseEmbedding, IncoherentDenseEmbedding
 from .flattener import Flattener
