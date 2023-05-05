@@ -23,11 +23,9 @@ def main(
     force_generation: bool = False,
     verbose: bool = False,
 ):
-    """Generates a dataset of raw waveforms. The goal was to make this
-    project waveform agnositic
+    """Generates a dataset of raw waveforms to use for validation.
 
     Args:
-
         prior: Callable that instantiates a bilby prior
         waveform: A callable compatible with bilby waveform generator
         sample_rate: sample rate for generating waveform

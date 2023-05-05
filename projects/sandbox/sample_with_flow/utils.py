@@ -18,8 +18,8 @@ def load_preprocessor_state(
     whitener_path = preprocessor_dir / "whitener.pt"
     scaler_path = preprocessor_dir / "scaler.pt"
 
-    preprocessor.whitener = torch.load(whitener_path)
-    preprocessor.scaler = torch.load(scaler_path)
+    preprocessor.whitener.load_state_dict(torch.load(whitener_path))
+    preprocessor.scaler.load_state_dict(torch.load(scaler_path))
     return preprocessor
 
 
@@ -32,7 +32,7 @@ def load_test_data(testing_path: Path, inference_params: List[str]):
             # take logarithm since hrss
             # spans large magnitude range
             if param == "hrss":
-                values = np.log10(values)
+                values = np.log(values)
             params.append(values)
 
         params = np.vstack(params).T

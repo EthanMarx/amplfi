@@ -185,7 +185,7 @@ def main(
             # take logarithm since hrss
             # spans large magnitude range
             if param == "hrss":
-                values = np.log10(values)
+                values = np.log(values)
             params.append(values)
 
         params = np.vstack(params).T
@@ -223,7 +223,7 @@ def main(
         pin_memory_device=device,
     )
 
-    bilby_results_dir = datadir / "bilby" / "rundir" / "final_result"
+    bilby_results_dir = datadir / "bilby" / "rundir" / "result"
     bilby_results_paths = sorted(list(bilby_results_dir.iterdir()))
 
     # get index of phi samples to use later when converting to ra
