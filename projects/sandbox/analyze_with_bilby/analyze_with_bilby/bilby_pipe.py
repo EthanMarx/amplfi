@@ -68,7 +68,8 @@ def main(
 
     # channels are named the same as the ifos
     channel_dict = {ifo: channel for ifo in ifos}
-    psd_dict = {ifo: str(datadir / "psds" / f"{ifo}_psd.txt") for ifo in ifos}
+    # psd_dict =
+    # {ifo: str(datadir / "psds" / f"{ifo}_psd.txt") for ifo in ifos}
     sampler_kwargs = {
         "sample": "rwalk",
         "nlive": n_live,
@@ -91,7 +92,7 @@ def main(
     args.default_prior = "PriorDict"
     args.prior_dict = str(prior).replace("'", "")
     args.data_dict = str(data_dict).replace("'", "")
-    args.psd_dict = str(psd_dict).replace("'", "")
+    # args.psd_dict = str(psd_dict).replace("'", "")
     args.sampler_kwargs = str(sampler_kwargs).replace("'", "")
     args.channel_dict = str(channel_dict).replace("'", "")
     args.accounting = accounting_group

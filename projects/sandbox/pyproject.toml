@@ -2,13 +2,13 @@
 # note: until pinto update gets in, any steps
 # that have subcommands will fail (e.g. training and sampling)
 steps = [
-    #"data_generation:generate-background",
+    "data_generation:generate-background",
     #"data_generation:generate-waveforms",
     #"data_generation:generate-flow-injections",
-    #"data_generation:generate-bilby-injections",
-    #"analyze_with_bilby:analyze-with-bilby",
+    "data_generation:generate-bilby-injections",
+    "analyze_with_bilby:analyze-with-bilby",
     #"train:train:maf:resnet",
-    "sampling:sample-with-flow:maf:resnet",
+    #"sampling:sample-with-flow:maf:resnet",
     #"sampling:sample-and-compare-with-bilby:maf:resnet"
 ]
 
@@ -148,22 +148,23 @@ kernel_length = "${base.kernel_length}"
 state_flag = "${base.state_flag}"
 frame_type = "${base.frame_type}"
 channel = "${base.channel}"
-start = "${base.stop}"
-stop = "${base.test_stop}"
+start = "${base.start}"
+stop = "${base.stop}"
 sample_rate = "${base.sample_rate}"
 prior = "mlpe.injection.priors.sg_uniform"
+waveform = "mlpe.injection.waveforms.sine_gaussian_frequency"
 n_samples = 10
 waveform_duration = "${base.waveform_duration}"
-spacing = 100
-buffer = 10
+spacing = 140
+buffer = 150
 datadir = "${base.datadir}"
 logdir = "${base.logdir}"
-gaussian = false
+gaussian = true 
 
 [tool.typeo.scripts.analyze-with-bilby]
-request_cpus = 24
-n_live = 256
-n_act = 5
+request_cpus = 32
+n_live = 1024
+n_act = 10
 ifos = "${base.ifos}"
 bilby_duration = "${base.bilby_duration}"
 waveform = "mlpe.injection.bilby_frequency_domain_sine_gaussian"
