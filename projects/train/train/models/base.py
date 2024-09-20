@@ -93,6 +93,8 @@ class AmplfiModel(pl.LightningModule):
             # so that its weights can be checkpointed
             self.scaler = self.trainer.datamodule.scaler
 
+          
+
     def configure_optimizers(self):
         if not torch.distributed.is_initialized():
             world_size = 1

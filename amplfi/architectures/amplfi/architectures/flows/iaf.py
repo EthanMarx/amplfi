@@ -49,14 +49,6 @@ class InverseAutoregressiveFlow(FlowArchitecture):
             self.std,
         )
 
-    def build_transforms(self):
-        """Build the transform"""
-        transforms = []
-        for _ in range(self.num_transforms):
-            transform = self.transform_block()
-            transforms.extend([transform])
-        return ConditionalComposeTransformModule(transforms)
-
 
 class MaskedAutoregressiveFlow(InverseAutoregressiveFlow):
     """Affine autoregressive transforms that allow density

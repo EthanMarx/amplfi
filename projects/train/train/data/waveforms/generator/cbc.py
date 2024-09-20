@@ -62,7 +62,7 @@ class FrequencyDomainCBCGenerator(WaveformGenerator):
         self.padding = padding
         self.ringdown_duration = ringdown_duration
 
-        frequencies = torch.linspace(0, self.nyquist, self.num_freqs)
+        frequencies = torch.fft.rfftfreq(self.waveform_size, 1 / self.sample_rate)
         self.register_buffer("frequencies", frequencies)
 
     @property
@@ -154,9 +154,11 @@ class FrequencyDomainCBCGenerator(WaveformGenerator):
 
     def frequency_domain_strain(self, **parameters):
         device = parameters["chirp_mass"].device
-        freqs = torch.clone(self.frequencies).to(device)
         self.approximant.to(device)
-        return self.waveform(freqs[self.freq_mask], **parameters)
+        hc, hp = self.waveform(self.frequencies, **parameters)
+        hc = hc * self.freq_mask[None]
+        hp = hp * self.freq_mask[None]
+        return hc, hp
 
     def slice_waveforms(self, waveforms: torch.Tensor):
         # for cbc waveforms, the padding (see above)
@@ -166,9 +168,19 @@ class FrequencyDomainCBCGenerator(WaveformGenerator):
         start = waveforms.shape[-1] - self.waveform_size
         return waveforms[..., start:]
 
-    def forward(self, **parameters):
+    def forward_time(self, **parameters):
         hc, hp = self.time_domain_strain(**parameters)
         waveforms = torch.stack([hc, hp], dim=1)
         waveforms = self.slice_waveforms(waveforms)
+        hc, hp = waveforms.transpose(1, 0)
+        return hc, hp
+    
+    def forward_frequency(self, **parameters):
+        hc, hp = self.frequency_domain_strain(**parameters)
+        # translate by -ringdown size
+        phase = -2 * math.pi * self.ringdown_duration * self.frequencies
+        hc *= torch.exp(1j * phase)
+        hp *= torch.exp(1j * phase)
+        waveforms = torch.stack([hc, hp], dim=1)
         hc, hp = waveforms.transpose(1, 0)
         return hc, hp

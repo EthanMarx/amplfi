@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import torch
+from pyro.distributions.transforms import BatchNorm
 from pyro.distributions import ConditionalTransformedDistribution, transforms
 from pyro.distributions.conditional import ConditionalComposeTransformModule
 from pyro.nn import PyroModule
@@ -39,10 +40,6 @@ class FlowArchitecture(PyroModule):
     def distribution(self) -> torch.distributions.Distribution:
         raise NotImplementedError
 
-    def build_transforms(self) -> ConditionalComposeTransformModule:
-        """Sets the ``transforms`` attribute"""
-        raise NotImplementedError
-
     def flow(self) -> ConditionalTransformedDistribution:
         return ConditionalTransformedDistribution(
             self.distribution(), self.transforms
@@ -68,3 +65,11 @@ class FlowArchitecture(PyroModule):
         embedded_context = self.embedding_net(context)
         n = [n] if isinstance(n, int) else n
         return self.flow().condition(embedded_context).sample(n)
+    
+    def build_transforms(self) -> ConditionalComposeTransformModule:
+        """Sets the ``transforms`` attribute"""
+        transforms = []
+        for _ in range(self.num_transforms):
+            bn = BatchNorm(self.num_params)
+            transforms.extend([self.transform_block(), bn])
+        return ConditionalComposeTransformModule(transforms)

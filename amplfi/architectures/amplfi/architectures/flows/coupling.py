@@ -52,9 +52,3 @@ class CouplingFlow(FlowArchitecture):
             self.mean,
             self.std,
         )
-
-    def build_transforms(self):
-        transforms = []
-        for _ in range(self.num_transforms):
-            transforms.extend([self.transform_block()])
-        return ConditionalComposeTransformModule(transforms)

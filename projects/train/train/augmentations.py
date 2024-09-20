@@ -6,7 +6,6 @@ from ml4gw.transforms import SpectralDensity
 
 Tensor = torch.Tensor
 
-
 class WaveformProjector(torch.nn.Module):
     def __init__(
         self,
@@ -37,7 +36,85 @@ class WaveformProjector(torch.nn.Module):
             **polarizations,
         )
         return responses
+    
+def time_delay_from_geocenter(
+    theta, phi, vertices, sample_rate
+):
+    omega = torch.column_stack(
+        [
+            torch.sin(theta) * torch.cos(phi),
+            torch.sin(theta) * torch.sin(phi),
+            torch.cos(theta),
+        ]
+    ).view(-1, 1, 3)
 
+
+    dt = -(omega * vertices).sum(axis=-1)
+    return dt
+
+def compute_observed_strain_frequency(
+    dec, psi, phi, detector_tensors, detector_vertices, sample_rate, frequencies, **polarizations
+):
+    
+    theta = torch.pi / 2 - dec
+    antenna_responses = gw.compute_antenna_responses(
+        theta, psi, phi, detector_tensors, list(polarizations)
+    )
+
+
+    # cast antenna responses to complex
+
+    polarizations = torch.stack(list(polarizations.values()), axis=1)
+    antenna_responses = antenna_responses.type(polarizations.dtype)
+
+    waveforms = torch.einsum(
+        "...pi,...pt->...it", antenna_responses, polarizations
+    )
+
+    dt = time_delay_from_geocenter(theta, phi, detector_vertices, sample_rate)
+    frequencies = frequencies[None,None]
+    dt = dt[...,None]
+    # calculate phase shift for each detector
+
+    phase_shift = 2 * torch.pi * frequencies * dt
+
+    # apply phase shift
+    waveforms = waveforms * torch.exp(-1j * phase_shift)
+    return waveforms
+
+
+class FrequencyWhitener(torch.nn.Module):
+
+    def forward(self, X: Tensor, psds: Tensor) -> Tensor:
+        psds = torch.nn.functional.interpolate(psds, size=X.size(-1), mode="linear")
+        whitened = X / torch.sqrt(psds)
+        mask = torch.isnan(whitened)
+        whitened[mask] = 0
+        return whitened
+
+class FrequencyDomainProjector(WaveformProjector):
+    def __init__(self, *args, frequencies: torch.Tensor, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.register_buffer("frequencies", frequencies)
+
+    def forward(
+        self,
+        dec: torch.Tensor,
+        psi: torch.Tensor,
+        phi: torch.Tensor,
+        **polarizations: torch.Tensor
+    ):
+        return compute_observed_strain_frequency(
+            dec,
+            psi,
+            phi,
+            self.tensors,
+            self.vertices,
+            self.sample_rate,
+            self.frequencies,
+            **polarizations,
+        )
+        
 
 class PsdEstimator(torch.nn.Module):
     """

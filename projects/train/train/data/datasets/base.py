@@ -8,8 +8,9 @@ import lightning.pytorch as pl
 import torch
 from ml4gw.dataloading import Hdf5TimeSeriesDataset, InMemoryDataset
 from ml4gw.transforms import ChannelWiseScaler, Whiten
+from ml4gw import gw
 
-from train.augmentations import PsdEstimator, WaveformProjector
+from train.augmentations import PsdEstimator, WaveformProjector, FrequencyDomainProjector, FrequencyWhitener
 from train.data.utils import fs as fs_utils
 from train.data.utils.utils import ZippedDataset
 from train.data.waveforms.sampler import WaveformSampler
@@ -68,6 +69,7 @@ class AmplfiDataset(pl.LightningDataModule):
     def __init__(
         self,
         data_dir: str,
+        domain: str,
         inference_params: list[str],
         highpass: float,
         sample_rate: float,
@@ -86,6 +88,7 @@ class AmplfiDataset(pl.LightningDataModule):
         self.save_hyperparameters(ignore=["waveform_sampler"])
         self.init_logging(verbose)
         self.waveform_sampler = waveform_sampler
+        self.domain = domain
 
         # generate our local node data directory
         # if our specified data source is remote
@@ -166,11 +169,9 @@ class AmplfiDataset(pl.LightningDataModule):
     # ================================================ #
     @property
     def sample_length(self):
-        return (
-            self.hparams.kernel_length
-            + self.hparams.fduration
-            + self.hparams.psd_length
-        )
+        length = self.hparams.kernel_length + self.hparams.psd_length
+        length += self.hparams.fduration
+        return length
 
     @property
     def num_ifos(self):
@@ -250,11 +251,21 @@ class AmplfiDataset(pl.LightningDataModule):
             average="median",
         )
 
-        self.whitener = Whiten(
-            self.hparams.fduration,
-            self.hparams.sample_rate,
-            self.hparams.highpass,
-        )
+        if self.domain == "time":
+            self.whitener = Whiten(
+                self.hparams.fduration,
+                self.hparams.sample_rate,
+                self.hparams.highpass,
+            )
+            self.projector = WaveformProjector(
+                self.hparams.ifos, self.hparams.sample_rate
+            )   
+        elif self.domain == "frequency":
+            self.whitener = FrequencyWhitener()
+            self.projector = FrequencyDomainProjector(
+                self.hparams.ifos, self.hparams.sample_rate, frequencies = self.waveform_sampler.frequencies
+            )
+            self.window = torch.hann_window(int(window_length * self.hparams.sample_rate)).to(self.device)
 
         # build standard scaler object and fit to parameters;
         # waveform_sampler subclasses will decide how to generate
@@ -262,10 +273,7 @@ class AmplfiDataset(pl.LightningDataModule):
         self._logger.info("Fitting standard scaler to parameters")
         scaler = ChannelWiseScaler(self.num_params)
         self.scaler = self.waveform_sampler.fit_scaler(scaler)
-
-        self.projector = WaveformProjector(
-            self.hparams.ifos, self.hparams.sample_rate
-        )
+       
 
     def setup(self, stage: str) -> None:
         world_size, rank = self.get_world_size_and_rank()
@@ -329,6 +337,7 @@ class AmplfiDataset(pl.LightningDataModule):
         # and transfer them to appropiate device
         self.build_transforms(stage)
         self.transforms_to_device()
+        self.fit_svd()
 
     def load_background(self, fnames: Sequence[str]):
         background = []
@@ -501,3 +510,54 @@ class AmplfiDataset(pl.LightningDataModule):
         after the data is transferred to the local device
         """
         raise NotImplementedError
+
+    def fit_svd(self):
+        """
+        Fit a SVD to a set of whitened waveforms;
+        """
+        loader = iter(self.train_dataloader())
+        count = 0
+        data = []
+        self._logger.info("Generating whitened waveforms for SVD fitting")
+        while count < 100_000:
+            batch = next(loader)
+            [batch] = batch
+            batch = batch.to(self.device)
+            N = len(batch)
+            _, psds = self.psd_estimator(batch)
+
+            parameters = self.waveform_sampler.parameter_sampler(N, device=self.device)
+            cross, plus = self.waveform_sampler(**parameters)
+            parameters["distance"] = torch.ones_like(parameters["distance"]) * 100
+        
+            dec, psi, phi = self.waveform_sampler.sample_extrinsic(batch)
+
+            waveforms = self.projector(dec, psi, phi, cross=cross, plus=plus)
+        
+            whitened = self.whitener(waveforms, psds)
+            mask = self.waveform_sampler.frequencies > self.hparams.highpass
+            whitened = whitened[..., mask]
+            data.append(whitened)
+
+
+            count += N
+            self._logger.info(f"Generated {count} whitened waveforms")
+
+        self._logger.info("Fitting SVD to whitened waveforms")
+        
+        data = torch.cat([d.cpu() for d in data], axis=0)
+
+        Vs, Vhs = [], []
+        for i in range(self.num_ifos):
+            svd_data = data[:, i, :]
+            _, _, Vh = torch.linalg.svd(svd_data, full_matrices=False)
+            V = Vh.T.conj()
+            V_down = V[:, :200]
+            Vh_down = Vh[:200, :]
+            print(V_down.shape, Vh_down.shape)
+            Vs.append(V_down)
+            Vhs.append(Vh_down)
+        
+        self.trainer.lightning_module.model.embedding_net.fit(Vs, Vhs)
+
+        torch.save(self.trainer.lightning_module.model.embedding_net.state_dict(), "/home/ethan.marx/amplfi/svd-test/svd.pt")

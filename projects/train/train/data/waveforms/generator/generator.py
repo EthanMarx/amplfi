@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Literal
 
 import torch
 
@@ -18,6 +18,7 @@ class WaveformGenerator(WaveformSampler):
         parameter_sampler: ParameterSampler,
         test_parameter_sampler: Optional[ParameterSampler] = None,
         num_fit_params: int,
+        domain: Literal["time", "frequency"] = "time",
         **kwargs,
     ):
         """
@@ -45,6 +46,7 @@ class WaveformGenerator(WaveformSampler):
         self.num_val_waveforms = num_val_waveforms
         self.num_test_waveforms = num_test_waveforms
         self.num_fit_params = num_fit_params
+        self.domain = domain
 
     def get_val_waveforms(self, _, world_size):
         num_waveforms = self.num_val_waveforms // world_size
@@ -78,5 +80,9 @@ class WaveformGenerator(WaveformSampler):
         scaler.fit(fit)
         return scaler
 
-    def forward(self):
+    def forward(self, *args, **kwargs):
+        if self.domain == "time":
+            return self.forward_time(*args, **kwargs)
+        elif self.domain == "frequency":
+            return self.forward_frequency(*args, **kwargs)
         raise NotImplementedError
