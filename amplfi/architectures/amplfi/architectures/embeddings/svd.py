@@ -85,7 +85,7 @@ class ResidualBlock(nn.Module):
         context_features,
         activation=F.relu,
         dropout_probability=0.0,
-        use_batch_norm=False,
+        use_batch_norm=True,
         zero_initialization=True,
     ):
         super().__init__()
