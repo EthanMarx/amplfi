@@ -52,12 +52,12 @@ class FlowModel(AmplfiModel):
         # checkpint should only be specified here if running trainer.test
         self.maybe_load_checkpoint(self.checkpoint)
 
-    def forward(self, strain, parameters) -> Tensor:
-        return -self.model.log_prob(parameters, context=strain)
+    def forward(self, strain, psds, parameters) -> Tensor:
+        return -self.model.log_prob(parameters, context=(strain, psds))
 
     def training_step(self, batch, _):
-        strain, parameters = batch
-        loss = self(strain, parameters).mean()
+        strain, psds, parameters = batch
+        loss = self(strain, psds, parameters).mean()
         self.log(
             "train_loss",
             loss,
@@ -70,8 +70,8 @@ class FlowModel(AmplfiModel):
         return loss
 
     def validation_step(self, batch, _):
-        strain, parameters = batch
-        loss = self(strain, parameters).mean()
+        strain, psds, parameters = batch
+        loss = self(strain, psds, parameters).mean()
         self.log(
             "valid_loss",
             loss,

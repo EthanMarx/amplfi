@@ -33,12 +33,15 @@ class SaveAugmentedBatch(pl.Callback):
             X = X.to(device)
 
             cross, plus, parameters = datamodule.waveform_sampler.sample(X)
-            strain, parameters = datamodule.inject(X, cross, plus, parameters)
+            strain, psds, parameters = datamodule.inject(
+                X, cross, plus, parameters
+            )
 
             save_dir = trainer.logger.log_dir or trainer.logger.save_dir
             with h5py.File(os.path.join(save_dir, "train-batch.h5"), "w") as f:
                 f["strain"] = strain.cpu().numpy()
                 f["parameters"] = parameters.cpu().numpy()
+                f["psds"] = psds.cpu().numpy()
 
             # save an example validation batch
             # and parameters to disk
@@ -57,12 +60,13 @@ class SaveAugmentedBatch(pl.Callback):
                 if k not in ["dec", "psi", "phi"]
             ]
             parameters = {k: parameters[:, i] for i, k in enumerate(keys)}
-            strain, parameters = datamodule.inject(
+            strain, psds, parameters = datamodule.inject(
                 background, cross, plus, parameters
             )
             with h5py.File(os.path.join(save_dir, "val-batch.h5"), "w") as f:
                 f["strain"] = strain.cpu().numpy()
                 f["parameters"] = parameters.cpu().numpy()
+                f["psds"] = psds.cpu().numpy()
 
 
 class SaveAugmentedSimilarityBatch(pl.Callback):

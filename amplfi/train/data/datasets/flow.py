@@ -38,5 +38,5 @@ class FlowDataset(AmplfiDataset):
 
         # scale parameters
         parameters = self.scale(parameters)
-
-        return X, parameters
+        psds = psds.float()
+        return X, psds, parameters

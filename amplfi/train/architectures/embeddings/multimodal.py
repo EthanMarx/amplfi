@@ -4,7 +4,7 @@ import torch
 from ml4gw.nn.norm import NormLayer
 from ml4gw.nn.resnet.resnet_1d import ResNet1D
 
-from amplfi.architectures.embeddings.base import Embedding
+from amplfi.train.architectures.embeddings.base import Embedding
 
 
 class MultiModal(Embedding):
@@ -31,7 +31,7 @@ class MultiModal(Embedding):
         and context dims, then concatenate the output embeddings.
         """
         super().__init__()
-        self.context_dim = time_context_dim + freq_context_dim
+        self.context_dim = time_context_dim + 2 * freq_context_dim
         self.time_domain_resnet = ResNet1D(
             in_channels=num_ifos,
             layers=time_layers,
@@ -55,13 +55,28 @@ class MultiModal(Embedding):
             norm_layer=norm_layer,
         )
 
-    def forward(self, X):
-        time_domain_embedded = self.time_domain_resnet(X)
-        X_fft = torch.fft.rfft(X)
-        X_fft = torch.cat((X_fft.real, X_fft.imag), dim=1)
-        frequency_domain_embedded = self.frequency_domain_resnet(X_fft)
+        self.psd_resnet = ResNet1D(
+            in_channels=int(num_ifos),
+            layers=freq_layers,
+            classes=freq_context_dim,
+            kernel_size=freq_kernel_size,
+            zero_init_residual=zero_init_residual,
+            groups=groups,
+            width_per_group=width_per_group,
+            stride_type=stride_type,
+            norm_layer=norm_layer,
+        )
 
+    def forward(self, X):
+        strain, psds = X
+        time_domain_embedded = self.time_domain_resnet(strain)
+        X_fft = torch.fft.rfft(strain)
+        X_fft = torch.cat((X_fft.real, X_fft.imag), dim=1)
+
+        frequency_domain_embedded = self.frequency_domain_resnet(X_fft)
+        psd_embedded = self.psd_resnet(psds)
         embedding = torch.concat(
-            (time_domain_embedded, frequency_domain_embedded), dim=1
+            (time_domain_embedded, frequency_domain_embedded, psd_embedded),
+            dim=1,
         )
         return embedding
