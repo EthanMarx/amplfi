@@ -70,10 +70,10 @@ class MultiModal(Embedding):
         """
 
     def forward(self, X):
-        strain, psds = X
+        strain, asds = X
         time_domain_embedded = self.time_domain_resnet(strain)
         X_fft = torch.fft.rfft(strain)
-        X_fft = X_fft[..., -psds.shape[-1] :]
+        X_fft = X_fft[..., -asds.shape[-1] :]
         X_fft = torch.cat((X_fft.real, X_fft.imag), dim=1)
 
         frequency_domain_embedded = self.frequency_domain_resnet(X_fft)
@@ -134,12 +134,16 @@ class MultiModalPsd(Embedding):
         )
 
     def forward(self, X):
+        strain, asds = X
 
-        strain, psds = X
+        asds *= 1e23
+        asds = asds.float()
+        inv_asds = 1 / asds
+
         time_domain_embedded = self.time_domain_resnet(strain)
         X_fft = torch.fft.rfft(strain)
-        X_fft = X_fft[..., -psds.shape[-1] :]
-        X_fft = torch.cat((X_fft.real, X_fft.imag, psds), dim=1)
+        X_fft = X_fft[..., -asds.shape[-1] :]
+        X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
 
         frequency_domain_embedded = self.freq_psd_resnet(X_fft)
         embedding = torch.concat(

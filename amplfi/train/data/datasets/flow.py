@@ -48,6 +48,5 @@ class FlowDataset(AmplfiDataset):
 
         mask = freqs > self.hparams.highpass
         psds = psds[:, :, mask]
-        psds *= 1e23
-        psds = psds.float()
-        return X, psds, parameters
+        asds = torch.sqrt(psds)
+        return X, asds, parameters
