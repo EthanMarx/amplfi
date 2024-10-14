@@ -4,6 +4,7 @@ import shutil
 
 import h5py
 import lightning.pytorch as pl
+import ray
 import s3fs
 from lightning.pytorch.cli import SaveConfigCallback
 from lightning.pytorch.loggers import WandbLogger
@@ -148,5 +149,8 @@ class SaveAugmentedSimilarityBatch(pl.Callback):
 
 class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
     def on_train_end(self, trainer, pl_module):
+        # if we're tuning, ray will already be checkpointing
+        if ray.is_initialized():
+            return
         save_dir = trainer.logger.save_dir
         shutil.copy(self.best_model_path, os.path.join(save_dir, "best.ckpt"))
