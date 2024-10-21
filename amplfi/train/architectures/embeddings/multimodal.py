@@ -55,19 +55,6 @@ class MultiModal(Embedding):
             stride_type=stride_type,
             norm_layer=norm_layer,
         )
-        """
-        self.psd_resnet = ResNet1D(
-            in_channels=int(num_ifos),
-            layers=freq_layers,
-            classes=8,
-            kernel_size=freq_kernel_size,
-            zero_init_residual=zero_init_residual,
-            groups=groups,
-            width_per_group=width_per_group,
-            stride_type=stride_type,
-            norm_layer=norm_layer,
-        )
-        """
 
     def forward(self, X):
         strain, asds = X
@@ -150,4 +137,45 @@ class MultiModalPsd(Embedding):
             (time_domain_embedded, frequency_domain_embedded),
             dim=1,
         )
+        return embedding
+
+
+class FrequencyPsd(Embedding):
+    def __init__(
+        self,
+        num_ifos: int,
+        context_dim: int,
+        layers: list[int],
+        kernel_size: int = 3,
+        zero_init_residual: bool = False,
+        groups: int = 1,
+        width_per_group: int = 64,
+        stride_type: Optional[list[Literal["stride", "dilation"]]] = None,
+        norm_layer: Optional[NormLayer] = None,
+    ):
+
+        self.freq_psd_resnet = ResNet1D(
+            in_channels=int(num_ifos * 3),
+            layers=layers,
+            classes=context_dim,
+            kernel_size=kernel_size,
+            zero_init_residual=zero_init_residual,
+            groups=groups,
+            width_per_group=width_per_group,
+            stride_type=stride_type,
+            norm_layer=norm_layer,
+        )
+
+    def forward(self, X):
+        strain, asds = X
+
+        asds *= 1e23
+        asds = asds.float()
+        inv_asds = 1 / asds
+
+        X_fft = torch.fft.rfft(strain)
+        X_fft = X_fft[..., -asds.shape[-1] :]
+        X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
+        embedding = self.freq_psd_resnet(X_fft)
+
         return embedding
