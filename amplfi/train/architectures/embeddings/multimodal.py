@@ -153,7 +153,7 @@ class FrequencyPsd(Embedding):
         stride_type: Optional[list[Literal["stride", "dilation"]]] = None,
         norm_layer: Optional[NormLayer] = None,
     ):
-
+        super().__init__()
         self.freq_psd_resnet = ResNet1D(
             in_channels=int(num_ifos * 3),
             layers=layers,
