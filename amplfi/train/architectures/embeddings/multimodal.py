@@ -165,6 +165,7 @@ class FrequencyPsd(Embedding):
             stride_type=stride_type,
             norm_layer=norm_layer,
         )
+        self.context_dim = context_dim
 
     def forward(self, X):
         strain, asds = X
