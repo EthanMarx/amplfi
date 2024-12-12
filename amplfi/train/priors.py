@@ -1,12 +1,24 @@
 from math import pi
+from typing import Dict
 
 import torch
 from ml4gw import distributions
+from ml4gw.waveforms.conversion import bilby_to_lalsim_spins
 from torch.distributions import Uniform
 
 from .data.utils.utils import ParameterSampler, ParameterTransformer
 
 sg_transformer = ParameterTransformer(hrss=torch.log)
+
+"""
+class BilbyToLALSimSpins(ParameterTransformer):
+    def forward(self, parameters: Dict[str, torch.Tensor]):
+        mass_1 = parameters["chirp_mass"] * (1 + parameters["mass_ratio"]) ** (
+            3 / 5
+        )
+        mass_2 = parameters["chirp_mass"] * parameters["mass_ratio"] ** (3 / 5)
+        bilby_to_lalsim_spins(**parameters)
+"""
 
 # make the below callables that return parameter samplers
 # so that jsonargparse can serialize them properly
@@ -24,7 +36,10 @@ def sg_prior() -> ParameterSampler:
 
 
 # priors and parameter transformers for cbc use case
-def cbc_prior() -> ParameterSampler:
+def cbc_aligned_spin_prior() -> ParameterSampler:
+    """
+    Aligned spin prior to be used with IMRPhenomD
+    """
     return ParameterSampler(
         chirp_mass=Uniform(
             torch.as_tensor(10, dtype=torch.float32),
@@ -54,6 +69,53 @@ def cbc_prior() -> ParameterSampler:
             torch.as_tensor(0, dtype=torch.float32),
             torch.as_tensor(0.999, dtype=torch.float32),
         ),
+    )
+
+
+def cbc_spin_precession_prior() -> ParameterSampler:
+    """
+    Prior for out of plane spins to be used with IMRPhenomPv2
+    """
+    return ParameterSampler(
+        chirp_mass=Uniform(
+            torch.as_tensor(10, dtype=torch.float32),
+            torch.as_tensor(100, dtype=torch.float32),
+        ),
+        mass_ratio=Uniform(
+            torch.as_tensor(0.125, dtype=torch.float32),
+            torch.as_tensor(0.999, dtype=torch.float32),
+        ),
+        distance=Uniform(
+            torch.as_tensor(100, dtype=torch.float32),
+            torch.as_tensor(3100, dtype=torch.float32),
+        ),
+        inclination=distributions.Sine(
+            torch.as_tensor(0, dtype=torch.float32),
+            torch.as_tensor(torch.pi, dtype=torch.float32),
+        ),
+        phic=Uniform(
+            torch.as_tensor(0, dtype=torch.float32),
+            torch.as_tensor(2 * torch.pi, dtype=torch.float32),
+        ),
+        a_1=Uniform(
+            torch.as_tensor(0, dtype=torch.float32),
+            torch.as_tensor(0.99, dtype=torch.float32),
+        ),
+        a_2=Uniform(
+            torch.as_tensor(0, dtype=torch.float32),
+            torch.as_tensor(0.99, dtype=torch.float32),
+        ),
+        tilt_1=distributions.Sine(low=0.0, high=torch.pi),
+        tilt_2=distributions.Sine(low=0.0, high=torch.pi),
+        phi_12=Uniform(
+            torch.as_tensor(0, dtype=torch.float32),
+            torch.as_tensor(2 * torch.pi, dtype=torch.float32),
+        ),
+        phi_jl=Uniform(
+            torch.as_tensor(0, dtype=torch.float32),
+            torch.as_tensor(2 * torch.pi, dtype=torch.float32),
+        ),
+        theta_jn=Uniform(),
     )
 
 
