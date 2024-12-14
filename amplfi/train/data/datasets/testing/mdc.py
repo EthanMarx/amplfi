@@ -41,6 +41,17 @@ class MDCDataset(FlowDataset):
         strain = []
         parameters = {}
         with h5py.File(self.mdc_file, "r") as f:
+            spin1x = f["spin1x"][:]
+            spin1y = f["spin1y"][:]
+
+            spin2x = f["spin2x"][:]
+            spin2y = f["spin2y"][:]
+
+            mask = spin1x < 0.01
+            mask = mask & (spin1y < 0.01)
+            mask = mask & (spin2x < 0.01)
+            mask = mask & (spin2y < 0.01)
+
             for ifo in self.hparams.ifos:
                 strain.append(torch.tensor(f[ifo][:], dtype=torch.float32))
 
@@ -61,7 +72,12 @@ class MDCDataset(FlowDataset):
                 parameters["ra"].numpy(), parameters["gpstime"].numpy()
             )
         )
+
+        for param in parameters:
+            parameters[param] = parameters[param][mask]
+
         strain = torch.stack(strain, dim=1)
+        strain = strain[mask]
 
         # based on psd length, fduration and kernel length, and padding,
         # determine slice indices. It is assumed the coalescence

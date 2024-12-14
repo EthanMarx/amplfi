@@ -52,21 +52,39 @@ class WaveformGenerator(WaveformSampler):
         self.num_test_waveforms = num_test_waveforms
         self.num_fit_params = num_fit_params
 
+    def get_waveform_gen_params(self, parameters):
+        # if waveform generation parameters are specified, downselect
+        if self.waveform_gen_params is not None:
+            waveform_gen_params = {}
+            for param in self.waveform_gen_params:
+                waveform_gen_params[param] = parameters[param]
+            return waveform_gen_params
+
+        # otherwise, return all parameters
+        return parameters
+
     def get_val_waveforms(self, _, world_size):
         num_waveforms = self.num_val_waveforms // world_size
         parameters = self.parameter_sampler(num_waveforms, device="cpu")
-        hc, hp = self(**parameters)
+        waveform_gen_params = self.get_waveform_gen_params(parameters)
+        hc, hp = self(**waveform_gen_params)
         return hc, hp, parameters
 
     def get_test_waveforms(self):
         parameters = self.test_parameter_sampler(self.num_test_waveforms)
-        hc, hp = self(**parameters)
+        waveform_gen_params = self.get_waveform_gen_params(parameters)
+        hc, hp = self(**waveform_gen_params)
         return hc, hp, parameters
 
     def sample(self, X):
         N = len(X)
         parameters = self.parameter_sampler(N, device=X.device)
-        hc, hp = self(**parameters)
+
+        # downselect to waveform generation parameters
+        waveform_gen_params = self.get_waveform_gen_params(parameters)
+        hc, hp = self(**waveform_gen_params)
+
+        # return waveforms and full parameter dictionary
         return hc, hp, parameters
 
     def fit_scaler(self, scaler: "ChannelWiseScaler") -> "ChannelWiseScaler":

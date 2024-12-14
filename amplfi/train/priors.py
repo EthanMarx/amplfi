@@ -1,24 +1,14 @@
 from math import pi
-from typing import Dict
 
 import torch
 from ml4gw import distributions
-from ml4gw.waveforms.conversion import bilby_to_lalsim_spins
 from torch.distributions import Uniform
 
+from .conversion import to_lalsimulation_parameters
 from .data.utils.utils import ParameterSampler, ParameterTransformer
 
 sg_transformer = ParameterTransformer(hrss=torch.log)
 
-"""
-class BilbyToLALSimSpins(ParameterTransformer):
-    def forward(self, parameters: Dict[str, torch.Tensor]):
-        mass_1 = parameters["chirp_mass"] * (1 + parameters["mass_ratio"]) ** (
-            3 / 5
-        )
-        mass_2 = parameters["chirp_mass"] * parameters["mass_ratio"] ** (3 / 5)
-        bilby_to_lalsim_spins(**parameters)
-"""
 
 # make the below callables that return parameter samplers
 # so that jsonargparse can serialize them properly
@@ -76,7 +66,9 @@ def cbc_spin_precession_prior() -> ParameterSampler:
     """
     Prior for out of plane spins to be used with IMRPhenomPv2
     """
+
     return ParameterSampler(
+        conversion_fn=to_lalsimulation_parameters,
         chirp_mass=Uniform(
             torch.as_tensor(10, dtype=torch.float32),
             torch.as_tensor(100, dtype=torch.float32),
@@ -88,10 +80,6 @@ def cbc_spin_precession_prior() -> ParameterSampler:
         distance=Uniform(
             torch.as_tensor(100, dtype=torch.float32),
             torch.as_tensor(3100, dtype=torch.float32),
-        ),
-        inclination=distributions.Sine(
-            torch.as_tensor(0, dtype=torch.float32),
-            torch.as_tensor(torch.pi, dtype=torch.float32),
         ),
         phic=Uniform(
             torch.as_tensor(0, dtype=torch.float32),
@@ -105,8 +93,8 @@ def cbc_spin_precession_prior() -> ParameterSampler:
             torch.as_tensor(0, dtype=torch.float32),
             torch.as_tensor(0.99, dtype=torch.float32),
         ),
-        tilt_1=distributions.Sine(low=0.0, high=torch.pi),
-        tilt_2=distributions.Sine(low=0.0, high=torch.pi),
+        tilt_1=Uniform(0, torch.pi),
+        tilt_2=Uniform(0, torch.pi),
         phi_12=Uniform(
             torch.as_tensor(0, dtype=torch.float32),
             torch.as_tensor(2 * torch.pi, dtype=torch.float32),
@@ -115,7 +103,7 @@ def cbc_spin_precession_prior() -> ParameterSampler:
             torch.as_tensor(0, dtype=torch.float32),
             torch.as_tensor(2 * torch.pi, dtype=torch.float32),
         ),
-        theta_jn=Uniform(),
+        theta_jn=Uniform(0, torch.pi),
     )
 
 

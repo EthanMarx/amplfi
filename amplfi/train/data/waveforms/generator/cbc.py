@@ -94,6 +94,7 @@ class FrequencyDomainCBCGenerator(WaveformGenerator):
         self.approximant.to(device)
 
         parameters.update(self.waveform_arguments)
+        print(parameters, freqs[self.freq_mask])
 
         # generate hc and hp at specified frequencies
         hc, hp = self.approximant(freqs[self.freq_mask], **parameters)
@@ -141,6 +142,7 @@ class FrequencyDomainCBCGenerator(WaveformGenerator):
         return waveforms
 
     def forward(self, **parameters):
+        print(parameters.keys())
         hc, hp = self.time_domain_strain(**parameters)
         waveforms = torch.stack([hc, hp], dim=1)
         waveforms = self.slice_waveforms(waveforms)

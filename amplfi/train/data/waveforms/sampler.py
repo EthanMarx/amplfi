@@ -30,6 +30,10 @@ class WaveformSampler(torch.nn.Module):
         jitter:
             The amount of jitter in seconds to randomly shift
             the waveform coalescence time. If `None`, no jitter is applied.
+        waveform_gen_params:
+            The parameters used to generate waveforms.
+            If `None`, all of the parameter
+            sampler parameters are used
     """
 
     def __init__(
@@ -41,10 +45,12 @@ class WaveformSampler(torch.nn.Module):
         psi: Distribution,
         phi: Distribution,
         jitter: Optional[float] = None,
+        waveform_gen_params: list[str] = None,
         parameter_transformer: Optional[ParameterTransformer] = None,
     ) -> None:
 
         super().__init__()
+        self.waveform_gen_params = waveform_gen_params
         self.parameter_transformer = parameter_transformer or (lambda x: x)
         self.inference_params = inference_params
         self.duration = duration

@@ -1,4 +1,4 @@
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
 
 import torch
 
@@ -25,18 +25,40 @@ class ParameterTransformer(torch.nn.Module):
 
 
 class ParameterSampler(torch.nn.Module):
-    def __init__(self, **parameters: Callable):
+    """
+    Helper class for sampling inference parameters
+
+    Args:
+        conversion_fn:
+            A callable that takes a dictionary of parameters
+            and applies any necessary conversions. Useful
+            for converting from an astrophysical prior to
+            parameters used for waveform generation
+        **parameters:
+            A dictionary of parameter distributions
+
+    """
+
+    def __init__(
+        self, conversion_fn: Optional[Callable] = None, **parameters: Callable
+    ):
+
         super().__init__()
         self.parameters = parameters
+        self.conversion_fn = conversion_fn or (lambda x: x)
 
     def forward(
         self,
         N: int,
         device: str = "cpu",
     ):
+
+        # sample parameters from priors
         parameters = {
             k: v.sample((N,)).to(device) for k, v in self.parameters.items()
         }
+        # apply any conversions, appending to parameter dics
+        parameters = self.conversion_fn(parameters)
         return parameters
 
 
