@@ -23,7 +23,7 @@ def conditional_spline_autoregressive(
     if hidden_dims is None:
         hidden_dims = [input_dim * 10, input_dim * 10]
 
-    param_dims = [count_bins, count_bins, count_bins]
+    param_dims = [count_bins, count_bins, count_bins - 1]
 
     arn = ConditionalAutoRegressiveNN(
         input_dim,
