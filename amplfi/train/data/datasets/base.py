@@ -211,7 +211,7 @@ class AmplfiDataset(pl.LightningDataModule):
     @property
     def test_fnames(self):
         """List of background files used for testing a trained model"""
-        test_dir = self.data_dir / "test" / "background"
+        test_dir = self.data_dir / "train" / "background"
         fnames = list(test_dir.glob("*.hdf5"))
         return fnames
 
