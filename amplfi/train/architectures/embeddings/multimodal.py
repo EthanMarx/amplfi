@@ -129,6 +129,12 @@ class MultiModalPsd(Embedding):
         asds = asds.float()
         inv_asds = 1 / asds
 
+        # randomly mask virgo
+        batch_size = strain.shape[0]
+        mask = torch.rand(batch_size) < 0.5
+        strain[mask, 2, :] = 0.0
+        inv_asds[mask, 2, :] = 0.0
+
         time_domain_embedded = self.time_domain_resnet(strain)
         X_fft = torch.fft.rfft(strain)
         X_fft = X_fft[..., -asds.shape[-1] :]
