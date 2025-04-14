@@ -28,6 +28,7 @@ def phi_from_ra(ra: np.ndarray, gpstimes: np.ndarray) -> float:
     gmsts = np.array(gmsts)
     # calculate the relative azimuthal angle in the range [0, 2pi]
     phi = np.remainder(ra - gmsts, 2 * np.pi)
+    phi[phi > np.pi] -= 2 * np.pi
 
     return phi
 
@@ -64,9 +65,7 @@ class StrainTestingDataset(FlowDataset):
         world_size, rank = self.get_world_size_and_rank()
         self._logger = self.get_logger(world_size, rank)
         if stage != "test":
-            raise ValueError(
-                "StrainTestingDataset should only be used for testing"
-            )
+            raise ValueError("StrainTestingDataset should only be used for testing")
 
         # load in the strain data and parameters
         strain = []
@@ -88,9 +87,7 @@ class StrainTestingDataset(FlowDataset):
 
         # convert ra to phi
         parameters["phi"] = torch.tensor(
-            phi_from_ra(
-                parameters["ra"].numpy(), parameters["gpstime"].numpy()
-            )
+            phi_from_ra(parameters["ra"].numpy(), parameters["gpstime"].numpy())
         )
         strain = torch.stack(strain, dim=1)
 
@@ -145,9 +142,7 @@ class StrainTestingDataset(FlowDataset):
         """
 
         if not self.trainer.testing:
-            raise ValueError(
-                "Use of the StrainTestingDataset is for testing only"
-            )
+            raise ValueError("Use of the StrainTestingDataset is for testing only")
 
         X, parameters = batch
 
@@ -162,9 +157,7 @@ class StrainTestingDataset(FlowDataset):
         # into a single tensor for the embedding
         freqs = torch.fft.rfftfreq(X.shape[-1], d=1 / self.hparams.sample_rate)
         num_freqs = len(freqs)
-        psds = torch.nn.functional.interpolate(
-            psds, size=(num_freqs,), mode="linear"
-        )
+        psds = torch.nn.functional.interpolate(psds, size=(num_freqs,), mode="linear")
 
         mask = freqs > self.hparams.highpass
         psds = psds[:, :, mask]
@@ -207,9 +200,7 @@ class ParameterTestingDataset(FlowDataset):
         # by default, assume waveform generation parameters are those
         # specified in the parameter sampler parameter keys;
         # otherwise, use user passed parameters
-        prior_keys = list(
-            self.waveform_sampler.parameter_sampler.parameters.keys()
-        )
+        prior_keys = list(self.waveform_sampler.parameter_sampler.parameters.keys())
 
         self.waveform_generation_parameters = (
             prior_keys
@@ -226,9 +217,7 @@ class ParameterTestingDataset(FlowDataset):
         world_size, rank = self.get_world_size_and_rank()
         self._logger = self.get_logger(world_size, rank)
         if stage != "test":
-            raise ValueError(
-                "ParameterTestingDataset should only be used for testing"
-            )
+            raise ValueError("ParameterTestingDataset should only be used for testing")
 
         parameters = {}
         load = self.hparams.inference_params + ["ra", "dec", "psi", "gpstime"]
@@ -247,10 +236,8 @@ class ParameterTestingDataset(FlowDataset):
         # apply conversion function to parameters
         # if we're generating from
         if self.convert:
-            parameters = (
-                self.waveform_sampler.parameter_sampler.conversion_function(
-                    parameters
-                )
+            parameters = self.waveform_sampler.parameter_sampler.conversion_function(
+                parameters
             )
 
         (
@@ -261,9 +248,7 @@ class ParameterTestingDataset(FlowDataset):
         )
         # convert ra to phi
         parameters["phi"] = torch.tensor(
-            phi_from_ra(
-                parameters["ra"].numpy(), parameters["gpstime"].numpy()
-            )
+            phi_from_ra(parameters["ra"].numpy(), parameters["gpstime"].numpy())
         )
 
         # generate cross and plus using our infrastructure
@@ -290,9 +275,7 @@ class ParameterTestingDataset(FlowDataset):
     def test_dataloader(self) -> torch.utils.data.DataLoader:
         cross, plus = self.waveforms
 
-        waveform_dataset = torch.utils.data.TensorDataset(
-            cross, plus, self.parameters
-        )
+        waveform_dataset = torch.utils.data.TensorDataset(cross, plus, self.parameters)
 
         waveform_dataloader = torch.utils.data.DataLoader(
             waveform_dataset,
@@ -319,15 +302,12 @@ class ParameterTestingDataset(FlowDataset):
         """
 
         if not self.trainer.testing:
-            raise ValueError(
-                "Use of ParameterTestingDataset is for testing only"
-            )
+            raise ValueError("Use of ParameterTestingDataset is for testing only")
 
         [cross, plus, parameters], [X] = batch
 
         parameters = {
-            k: parameters[:, i]
-            for i, k in enumerate(self.hparams.inference_params)
+            k: parameters[:, i] for i, k in enumerate(self.hparams.inference_params)
         }
 
         dec, psi, phi = (
@@ -339,9 +319,7 @@ class ParameterTestingDataset(FlowDataset):
 
         # downselect to requested inference parameters
         parameters = {
-            k: v
-            for k, v in parameters.items()
-            if k in self.hparams.inference_params
+            k: v for k, v in parameters.items() if k in self.hparams.inference_params
         }
 
         # make any requested parameter transforms
@@ -361,9 +339,7 @@ class ParameterTestingDataset(FlowDataset):
         # calculate asds and highpass
         freqs = torch.fft.rfftfreq(X.shape[-1], d=1 / self.hparams.sample_rate)
         num_freqs = len(freqs)
-        psds = torch.nn.functional.interpolate(
-            psds, size=(num_freqs,), mode="linear"
-        )
+        psds = torch.nn.functional.interpolate(psds, size=(num_freqs,), mode="linear")
 
         mask = freqs > self.hparams.highpass
         psds = psds[:, :, mask]
@@ -392,32 +368,28 @@ class RawStrainTestingDataset(FlowDataset):
             named `gpstimes`
     """
 
-    def __init__(
-        self, *args, gpstimes: Union[float, np.ndarray, Path], **kwargs
-    ):
+    def __init__(self, *args, gpstimes: Union[float, list[float], Path], **kwargs):
         self.gpstimes = self.parse_gps_times(gpstimes)
         super().__init__(*args, **kwargs)
 
     def parse_gps_times(self, gpstimes: Union[float, np.ndarray, Path]):
         if isinstance(gpstimes, (float, int)):
-            gpstimes = np.array([gpstimes])
+            gpstimes = [gpstimes]
         elif isinstance(gpstimes, Path):
             with h5py.File(gpstimes, "r") as f:
                 gpstimes = f["gpstimes"][:]
 
-        return gpstimes
+        return np.array(gpstimes)
 
     def setup(self, stage: str):
         world_size, rank = self.get_world_size_and_rank()
         self._logger = self.get_logger(world_size, rank)
         if stage != "predict":
             raise ValueError(
-                "RealEventDataset should only be used with `predict` stage"
+                "RawStrainTestingDataset should only be used with `predict` stage"
             )
 
-        self.background = self.background_from_gpstimes(
-            self.gpstimes, self.test_fnames
-        )
+        self.background = self.background_from_gpstimes(self.gpstimes, self.test_fnames)
 
         # once we've generated validation/testing waveforms on cpu,
         # build data augmentation modules
@@ -427,7 +399,7 @@ class RawStrainTestingDataset(FlowDataset):
 
     def predict_dataloader(self) -> torch.utils.data.DataLoader:
         dataset = torch.utils.data.TensorDataset(
-            self.background, self.gpstimes
+            self.background, torch.tensor(self.gpstimes, dtype=torch.float64)
         )
         dataloader = torch.utils.data.DataLoader(
             dataset,
@@ -456,9 +428,7 @@ class RawStrainTestingDataset(FlowDataset):
         # calculate asds and highpass
         freqs = torch.fft.rfftfreq(X.shape[-1], d=1 / self.hparams.sample_rate)
         num_freqs = len(freqs)
-        psds = torch.nn.functional.interpolate(
-            psds, size=(num_freqs,), mode="linear"
-        )
+        psds = torch.nn.functional.interpolate(psds, size=(num_freqs,), mode="linear")
 
         mask = freqs > self.hparams.highpass
         psds = psds[:, :, mask]

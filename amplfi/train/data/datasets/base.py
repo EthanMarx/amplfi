@@ -120,9 +120,7 @@ class AmplfiDataset(pl.LightningDataModule):
         if bucket is None:
             return
         logger.info(
-            "Downloading data from S3 bucket {} to {}".format(
-                bucket, self.data_dir
-            )
+            "Downloading data from S3 bucket {} to {}".format(bucket, self.data_dir)
         )
         fs_utils.download_training_data(bucket, self.data_dir)
 
@@ -205,9 +203,7 @@ class AmplfiDataset(pl.LightningDataModule):
     @property
     def num_workers(self):
         local_world_size = len(self.trainer.device_ids)
-        return min(
-            self.max_num_workers, int(os.cpu_count() / local_world_size)
-        )
+        return min(self.max_num_workers, int(os.cpu_count() / local_world_size))
 
     @property
     def val_batch_size(self):
@@ -293,9 +289,7 @@ class AmplfiDataset(pl.LightningDataModule):
             scaler = ChannelWiseScaler(self.num_params)
             self.scaler = self.waveform_sampler.fit_scaler(scaler)
 
-        self.projector = WaveformProjector(
-            self.hparams.ifos, self.hparams.sample_rate
-        )
+        self.projector = WaveformProjector(self.hparams.ifos, self.hparams.sample_rate)
 
     def setup(self, stage: str) -> None:
         world_size, rank = self.get_world_size_and_rank()
@@ -334,9 +328,7 @@ class AmplfiDataset(pl.LightningDataModule):
             self.val_parameters = torch.column_stack(params)
 
         elif stage == "test":
-            self._logger.info(
-                f"Loaded background files {self.test_fnames} for testing"
-            )
+            self._logger.info(f"Loaded background files {self.test_fnames} for testing")
             (
                 cross,
                 plus,
@@ -382,9 +374,7 @@ class AmplfiDataset(pl.LightningDataModule):
         if self.trainer.training:
             [batch] = batch
             cross, plus, parameters = self.waveform_sampler.sample(batch)
-            strain, asds, parameters = self.inject(
-                batch, cross, plus, parameters
-            )
+            strain, asds, parameters = self.inject(batch, cross, plus, parameters)
 
         elif self.trainer.validating or self.trainer.sanity_checking:
             [cross, plus, parameters], [background] = batch
@@ -396,9 +386,7 @@ class AmplfiDataset(pl.LightningDataModule):
                 if k not in ["dec", "psi", "phi"]
             ]
             parameters = {k: parameters[:, i] for i, k in enumerate(keys)}
-            strain, asds, parameters = self.inject(
-                background, cross, plus, parameters
-            )
+            strain, asds, parameters = self.inject(background, cross, plus, parameters)
 
         elif self.trainer.testing:
             [cross, plus, parameters], [background] = batch
@@ -408,9 +396,7 @@ class AmplfiDataset(pl.LightningDataModule):
                 if k not in ["dec", "psi", "phi"]
             ]
             parameters = {k: parameters[:, i] for i, k in enumerate(keys)}
-            strain, asds, parameters = self.inject(
-                background, cross, plus, parameters
-            )
+            strain, asds, parameters = self.inject(background, cross, plus, parameters)
 
         return strain, asds, parameters
 
@@ -442,9 +428,7 @@ class AmplfiDataset(pl.LightningDataModule):
                 num_files_per_batch=self.hparams.num_files_per_batch,
             )
 
-        self._logger.info(
-            f"Using a {dataset.__class__.__name__} class for training"
-        )
+        self._logger.info(f"Using a {dataset.__class__.__name__} class for training")
         pin_memory = isinstance(
             self.trainer.accelerator, pl.accelerators.CUDAAccelerator
         )
@@ -556,8 +540,7 @@ class AmplfiDataset(pl.LightningDataModule):
         # load in background segments corresponding to gpstimes
         background = []
         segments = [
-            tuple(map(float, f.name.split(".")[0].split("-")[1:]))
-            for f in fnames
+            tuple(map(float, f.name.split(".")[0].split("-")[1:])) for f in fnames
         ]
 
         def find_file(time: float) -> Optional[Path]:
@@ -588,7 +571,6 @@ class AmplfiDataset(pl.LightningDataModule):
 
         background = []
         for time in gpstimes:
-            time = time.item()
             strain = []
 
             # find file for this gpstime
@@ -601,9 +583,7 @@ class AmplfiDataset(pl.LightningDataModule):
                     f"{time}. Using random segment"
                 )
                 file = random.choice(self.test_fnames)
-                start, length = list(
-                    map(float, file.name.split(".")[0].split("-")[1:])
-                )
+                start, length = list(map(float, file.name.split(".")[0].split("-")[1:]))
                 time = start + random.randint(
                     self.sample_length,
                     length - self.sample_length,
