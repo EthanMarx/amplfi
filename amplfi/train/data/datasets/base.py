@@ -278,8 +278,8 @@ class AmplfiDataset(pl.LightningDataModule):
         )
 
         # set ifo masker to None;
-        # if `ifo_mask_probs` is not None 
-        # will be set below 
+        # if `ifo_mask_probs` is not None
+        # will be set below
         self.ifo_masker = None
 
         # build standard scaler object and fit to parameters;
@@ -297,10 +297,10 @@ class AmplfiDataset(pl.LightningDataModule):
 
             # only do channel masking during training
             if self.hparams.ifo_mask_probs is not None:
-                self._logger.info(f"Randomly masking {self.ifos} with corresponding probability {self.hparams.ifo_mask_probs}")
+                self._logger.info(
+                    f"Randomly masking {self.ifos} with corresponding probability {self.hparams.ifo_mask_probs}"
+                )
                 self.ifo_masker = IfoMasker(self.hparams.ifo_mask_probs)
-
-
 
         self.projector = WaveformProjector(self.hparams.ifos, self.hparams.sample_rate)
 

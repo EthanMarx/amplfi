@@ -22,9 +22,7 @@ class FlowDataset(AmplfiDataset):
 
         # downselect to requested inference parameters
         parameters = {
-            k: v
-            for k, v in parameters.items()
-            if k in self.hparams.inference_params
+            k: v for k, v in parameters.items() if k in self.hparams.inference_params
         }
 
         # make any requested parameter transforms
@@ -42,9 +40,7 @@ class FlowDataset(AmplfiDataset):
         # calculate asds and highpass
         freqs = torch.fft.rfftfreq(X.shape[-1], d=1 / self.hparams.sample_rate)
         num_freqs = len(freqs)
-        psds = torch.nn.functional.interpolate(
-            psds, size=(num_freqs,), mode="linear"
-        )
+        psds = torch.nn.functional.interpolate(psds, size=(num_freqs,), mode="linear")
 
         mask = freqs > self.hparams.highpass
         psds[..., mask] = 0.0
