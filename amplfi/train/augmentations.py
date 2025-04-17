@@ -101,3 +101,28 @@ class PsdEstimator(torch.nn.Module):
         self.spectral_density.to(device=background.device)
         psds = self.spectral_density(background.double())
         return X, psds
+
+
+class IfoMasker(torch.nn.Module):
+    """
+    Torch module that will randomly mask ifo channels with zeros
+    """
+    def __init__(self, ifo_combos: list[tuple[int]]):
+        self.ifo_combos = ifo_combos
+    
+    def forward(self, X: torch.Tensor):
+        batch_size = X.shape[0]
+        num_channels = X.shape[1]
+        indices = torch.randperm(batch_size) 
+        num_groups = len(self.ifo_combos)
+
+        ends = [i * (batch_size // num_groups) for i in range(num_groups)]
+        all_channels = set(range(num_channels)) 
+        # TODO: dont think this is a perf hit 
+        # but probably a way to avoid this for loop
+        for idx_end, combo in zip(ends, self.ifo_combos):
+            combo_indices = indices[] 
+            masked_channels = torch.tensor(all_channels - set(combo))
+            X[combo_indices, masked_channels, :] = 0.0
+            
+        return X

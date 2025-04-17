@@ -125,20 +125,15 @@ class MultiModalPsd(Embedding):
     def forward(self, X):
         strain, asds = X
 
+        # scale and invert asds where not 0.0
         asds *= 1e23
         asds = asds.float()
-        inv_asds = 1 / asds
-
-        # randomly mask virgo
-        batch_size = strain.shape[0]
-        mask = torch.rand(batch_size) < 0.5
-        strain[mask, 2, :] = 0.0
-        inv_asds[mask, 2, :] = 0.0
+        asds[asds != 0.0] = 1 / asds
 
         time_domain_embedded = self.time_domain_resnet(strain)
         X_fft = torch.fft.rfft(strain)
         X_fft = X_fft[..., -asds.shape[-1] :]
-        X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
+        X_fft = torch.cat((X_fft.real, X_fft.imag, asds), dim=1)
 
         frequency_domain_embedded = self.freq_psd_resnet(X_fft)
         embedding = torch.concat(

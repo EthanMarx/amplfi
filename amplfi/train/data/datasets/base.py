@@ -9,7 +9,7 @@ import torch
 from ml4gw.dataloading import Hdf5TimeSeriesDataset, InMemoryDataset
 from ml4gw.transforms import ChannelWiseScaler, Whiten
 
-from ...augmentations import PsdEstimator, WaveformProjector
+from ...augmentations import PsdEstimator, WaveformProjector, IfoMasker
 from ..utils import fs as fs_utils
 from ..utils.utils import ZippedDataset
 from ..waveforms.sampler import WaveformSampler
@@ -90,6 +90,7 @@ class AmplfiDataset(pl.LightningDataModule):
         fftlength: Optional[int] = None,
         min_valid_duration: float = 10000,
         num_files_per_batch: Optional[int] = None,
+        ifo_mask_probs: Optional[list[float]] = None,
         max_num_workers: int = 6,
         verbose: bool = False,
     ):
@@ -276,6 +277,11 @@ class AmplfiDataset(pl.LightningDataModule):
             self.hparams.highpass,
         )
 
+        # set ifo masker to None;
+        # if `ifo_mask_probs` is not None 
+        # will be set below 
+        self.ifo_masker = None
+
         # build standard scaler object and fit to parameters;
         # waveform_sampler subclasses will decide how to generate
         # parameters to fit the scaler.
@@ -288,6 +294,13 @@ class AmplfiDataset(pl.LightningDataModule):
             self._logger.info("Fitting standard scaler to parameters")
             scaler = ChannelWiseScaler(self.num_params)
             self.scaler = self.waveform_sampler.fit_scaler(scaler)
+
+            # only do channel masking during training
+            if self.hparams.ifo_mask_probs is not None:
+                self._logger.info(f"Randomly masking {self.ifos} with corresponding probability {self.hparams.ifo_mask_probs}")
+                self.ifo_masker = IfoMasker(self.hparams.ifo_mask_probs)
+
+
 
         self.projector = WaveformProjector(self.hparams.ifos, self.hparams.sample_rate)
 

@@ -47,7 +47,12 @@ class FlowDataset(AmplfiDataset):
         )
 
         mask = freqs > self.hparams.highpass
-        psds = psds[:, :, mask]
+        psds[..., mask] = 0.0
         asds = torch.sqrt(psds)
+
+        # if specified, randomly mask certain ifos with zeros
+        if self.channel_masker is not None:
+            X = self.channel_masker(X)
+            asds = self.channel_masker(asds)
 
         return X, asds, parameters
