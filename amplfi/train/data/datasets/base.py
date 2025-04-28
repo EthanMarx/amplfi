@@ -11,6 +11,7 @@ from ml4gw.transforms import ChannelWiseScaler, Whiten
 
 from ...augmentations import PsdEstimator, WaveformProjector
 from ..utils import fs as fs_utils
+from ..utils.masking_prior import IfoMasker
 from ..utils.utils import ZippedDataset
 from ..waveforms.sampler import WaveformSampler
 import numpy as np
@@ -91,6 +92,7 @@ class AmplfiDataset(pl.LightningDataModule):
         min_valid_duration: float = 10000,
         num_files_per_batch: Optional[int] = None,
         max_num_workers: int = 6,
+        ifo_masking_prior: Optional[dict[str, float]] = None,
         verbose: bool = False,
     ):
         super().__init__()
@@ -98,10 +100,16 @@ class AmplfiDataset(pl.LightningDataModule):
         self.init_logging(verbose)
         self.waveform_sampler = waveform_sampler
         self.max_num_workers = max_num_workers
-
         # generate our local node data directory
         # if our specified data source is remote
         self.data_dir = fs_utils.get_data_dir(self.hparams.data_dir)
+
+        # if an ifo masking prior is provided,
+        # create IfoMasker object which samples
+        # masks based on the prior
+        self.ifo_masker = None
+        if ifo_masking_prior is not None:
+            self.ifo_masker = IfoMasker(ifo_masking_prior, self.hparams.ifos)
 
     def init_logging(self, verbose: bool):
         log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
