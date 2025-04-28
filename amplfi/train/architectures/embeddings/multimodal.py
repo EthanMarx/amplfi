@@ -125,14 +125,17 @@ class MultiModalPsd(Embedding):
     def forward(self, X):
         strain, asds = X
 
+        # scale and invert asds,
+        # account for cases where asds might be masked
+        # due to interferometer masking
         asds *= 1e23
         asds = asds.float()
-        inv_asds = 1 / asds
+        asds[asds != 0.0] = 1 / asds[asds != 0.0]
 
         time_domain_embedded = self.time_domain_resnet(strain)
         X_fft = torch.fft.rfft(strain)
         X_fft = X_fft[..., -asds.shape[-1] :]
-        X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
+        X_fft = torch.cat((X_fft.real, X_fft.imag, asds), dim=1)
 
         frequency_domain_embedded = self.freq_psd_resnet(X_fft)
         embedding = torch.concat(
