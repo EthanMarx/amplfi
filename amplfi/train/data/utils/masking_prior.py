@@ -64,6 +64,7 @@ class IfoMasker:
                 [self.ifos.index(ifo) for ifo in ifos], device=device
             )
             batch_indices = indices[start_idx : start_idx + size]
+            start_idx += size
             mask[batch_indices, ifo_indices.unsqueeze(1)] = 1
 
         # add extra dimension for broadcasting along
