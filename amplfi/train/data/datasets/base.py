@@ -181,6 +181,16 @@ class AmplfiDataset(pl.LightningDataModule):
         scaled = scaled.transpose(1, 0)
         return scaled
 
+    def interferometer_mask(self, X: Tensor, asds: Tensor):
+        """
+        If specified, apply interferometer masking to the data
+        """
+        if self.ifo_masker is not None:
+            mask = self.ifo_masker.sample_mask(X.shape[0], device=self.device)
+            X = X * mask
+            asds = asds * mask
+        return X, asds
+
     # ================================================ #
     # Re-parameterizing some attributes
     # ================================================ #

@@ -170,6 +170,8 @@ class StrainTestingDataset(FlowDataset):
         psds = psds[:, :, mask]
         asds = torch.sqrt(psds)
 
+        X, asds = self.interferometer_mask(X, asds)
+
         return X, asds, parameters
 
 
@@ -369,6 +371,8 @@ class ParameterTestingDataset(FlowDataset):
         psds = psds[:, :, mask]
         asds = torch.sqrt(psds)
 
+        X, asds = self.interferometer_mask(X, asds)
+
         return X, asds, parameters
 
 
@@ -463,5 +467,7 @@ class RawStrainTestingDataset(FlowDataset):
         mask = freqs > self.hparams.highpass
         psds = psds[:, :, mask]
         asds = torch.sqrt(psds)
+
+        X, asds = self.interferometer_mask(X, asds)
 
         return X, asds, gpstimes

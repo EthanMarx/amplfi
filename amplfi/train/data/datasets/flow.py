@@ -50,9 +50,6 @@ class FlowDataset(AmplfiDataset):
         psds = psds[:, :, mask]
         asds = torch.sqrt(psds)
 
-        # if specified, perform any interferometer masking
-        if self.ifo_masker is not None:
-            mask = self.ifo_masker.sample_mask(X.shape[0], device=self.device)
-            X = X * mask
-            asds = asds * mask
+        X, asds = self.interferometer_mask(X, asds)
+
         return X, asds, parameters
