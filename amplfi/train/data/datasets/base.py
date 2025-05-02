@@ -110,6 +110,8 @@ class AmplfiDataset(pl.LightningDataModule):
         self.ifo_masker = None
         if ifo_masking_prior is not None:
             self.ifo_masker = IfoMasker(ifo_masking_prior, self.hparams.ifos)
+            logging.info("Using interferometer masking with following prior:")
+            logging.info(str(self.ifo_masker))
 
     def init_logging(self, verbose: bool):
         log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
