@@ -70,3 +70,9 @@ class IfoMasker:
         # add extra dimension for broadcasting along
         # the time dimension of the data tensor
         return mask[..., None]
+
+    def __str__(self):
+        output = ""
+        for ifos, prob in self.prior.values():
+            output += f"{ifos} : {prob}\n"
+        return output
