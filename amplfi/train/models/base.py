@@ -56,6 +56,10 @@ class AmplfiModel(pl.LightningModule):
         # for the LightningModule to save and load from checkpoints
         self.scaler = ChannelWiseScaler(len(inference_params))
 
+    def configure_model(self):
+        self._logger.info("Compiling Model")
+        self.model = torch.compile(self.model)
+
     def init_logging(self, verbose):
         log_format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         logging.basicConfig(
