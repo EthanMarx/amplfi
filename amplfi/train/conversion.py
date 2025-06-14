@@ -5,6 +5,14 @@ from ml4gw.waveforms.conversion import (
 )
 
 
+def chirp_distance_to_distance(
+    chirp_distance: torch.Tensor, chirp_mass: torch.Tensor
+):
+    fiducial = 1.4 / (2 ** (1 / 5))
+    ratio = chirp_distance * (chirp_mass / fiducial) ** (5 / 6)
+    return ratio
+
+
 def precessing_to_lalsimulation_parameters(
     parameters: dict[str, torch.Tensor],
 ) -> dict[str, torch.Tensor]:
@@ -17,6 +25,11 @@ def precessing_to_lalsimulation_parameters(
 
     parameters["mass_1"] = mass_1
     parameters["mass_2"] = mass_2
+
+    if "chirp_distance" in parameters:
+        parameters["distance"] = chirp_distance_to_distance(
+            parameters["chirp_distance"], parameters["chirp_mass"]
+        )
 
     # TODO: hard coding f_ref = 40 here b/c not sure best way to link this
     # to the f_ref specified in the config file

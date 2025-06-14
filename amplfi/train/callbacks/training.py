@@ -1,13 +1,19 @@
+from typing import TYPE_CHECKING
 import io
 import os
 import shutil
-
+import matplotlib.pyplot as plt
 import h5py
 import lightning.pytorch as pl
 import s3fs
 from lightning.pytorch.cli import SaveConfigCallback
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.utilities import grad_norm
+from copy import deepcopy
+
+if TYPE_CHECKING:
+    from amplfi.train.models import FlowModel
+    from amplfi.train.data.datasets.base import AmplfiDataset
 
 
 class SaveConfigCallback(SaveConfigCallback):
@@ -26,9 +32,10 @@ class SaveConfigCallback(SaveConfigCallback):
 
 
 class SaveAugmentedBatch(pl.Callback):
-    def on_train_start(self, trainer, pl_module):
+    def on_train_start(self, trainer, pl_module: "FlowModel"):
         if trainer.global_rank == 0:
-            datamodule = trainer.datamodule
+            pl_module._logger.info("Saving augmented batch")
+            datamodule: "AmplfiDataset" = trainer.datamodule
             device = pl_module.device
 
             # build and save an example training batch
@@ -37,7 +44,8 @@ class SaveAugmentedBatch(pl.Callback):
             X = X.to(device)
 
             cross, plus, parameters = datamodule.waveform_sampler.sample(X)
-            strain, asds, parameters = datamodule.inject(
+            unscaled_parameters = deepcopy(parameters)
+            strain, asds, parameters, snrs = datamodule.inject(
                 X, cross, plus, parameters
             )
 
@@ -60,7 +68,7 @@ class SaveAugmentedBatch(pl.Callback):
             val_parameters = {
                 k: val_parameters[:, i] for i, k in enumerate(keys)
             }
-            val_strain, val_asds, val_parameters = datamodule.inject(
+            val_strain, val_asds, val_parameters, _ = datamodule.inject(
                 background, val_cross, val_plus, val_parameters
             )
 
@@ -97,6 +105,28 @@ class SaveAugmentedBatch(pl.Callback):
                     f["strain"] = val_strain.cpu().numpy()
                     f["asds"] = val_asds.cpu().numpy()
                     f["parameters"] = val_parameters.cpu().numpy()
+
+                # diagnostic snr vs chirp mass plots
+                plt.figure()
+                plt.scatter(
+                    snrs.cpu(), unscaled_parameters["chirp_mass"].cpu()
+                )
+                plt.xscale("log")
+                plt.xlabel("Network SNR")
+                plt.ylabel("Chirp Mass")
+                plt.title("Training Batch")
+                plt.savefig(os.path.join(save_dir, "chirp_vs_snr.png"))
+
+                plt.figure()
+                plt.scatter(
+                    unscaled_parameters["distance"].cpu(),
+                    unscaled_parameters["chirp_mass"].cpu(),
+                )
+                plt.xscale("log")
+                plt.xlabel("Distance")
+                plt.ylabel("Chirp Mass")
+                plt.title("Training Batch")
+                plt.savefig(os.path.join(save_dir, "distance_vs_chirp.png"))
 
 
 class SaveAugmentedSimilarityBatch(pl.Callback):

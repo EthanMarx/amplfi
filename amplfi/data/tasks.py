@@ -144,7 +144,9 @@ def process_skymap(skymap_item, parameter_file, plot, data_dir):
     skymap = read_sky_map(skymap_target.path, moc=True, distances=True)
 
     with h5py.File(parameter_file, "r") as f:
-        ra = f["phi"][i] * u.rad
+        from amplfi.train.data.datasets.testing import phi_from_ra
+
+        ra = phi_from_ra(f["ra"][i], [f["gpstime"][i]])[0] * u.rad
         dec = f["dec"][i] * u.rad
         dist = f["distance"][i] * u.Mpc
 

@@ -17,6 +17,7 @@ class WaveformGenerator(WaveformSampler):
         num_test_waveforms: int,
         parameter_sampler: ParameterSampler,
         test_parameter_sampler: Optional[ParameterSampler] = None,
+        val_parameter_sampler: Optional[ParameterSampler] = None,
         num_fit_params: int,
         **kwargs,
     ):
@@ -39,6 +40,12 @@ class WaveformGenerator(WaveformSampler):
                 Used for sampling test waveforms from a prior
                 different from training data.
                 If None, `parameter_sampler` is used.
+            val_parameter_sampler:
+                A callable that takes an integer N and
+                returns a dictionary of parameter Tensors, each of length `N`.
+                Used for sampling val waveforms from a prior
+                different from training data.
+                If None, `parameter_sampler` is used.
             num_fit_params:
                 The number of parameters used to fit standard scaler
 
@@ -48,13 +55,14 @@ class WaveformGenerator(WaveformSampler):
         self.test_parameter_sampler = (
             test_parameter_sampler or parameter_sampler
         )
+        self.val_parameter_sampler = val_parameter_sampler or parameter_sampler
         self.num_val_waveforms = num_val_waveforms
         self.num_test_waveforms = num_test_waveforms
         self.num_fit_params = num_fit_params
 
     def get_val_waveforms(self, _, world_size):
         num_waveforms = self.num_val_waveforms // world_size
-        parameters = self.parameter_sampler(num_waveforms, device="cpu")
+        parameters = self.val_parameter_sampler(num_waveforms, device="cpu")
         hc, hp = self(**parameters)
         return hc, hp, parameters
 
