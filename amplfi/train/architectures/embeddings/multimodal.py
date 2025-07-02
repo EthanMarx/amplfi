@@ -3,8 +3,42 @@ from typing import Literal, Optional
 import torch
 from ml4gw.nn.norm import NormLayer
 from ml4gw.nn.resnet.resnet_1d import ResNet1D
-
+import torch.nn as nn
 from .base import Embedding
+
+
+class SimpleFusion(nn.Module):
+    """
+    Simple and clean fusion layer for combining time and
+    frequency domain embeddings.
+    Uses gated fusion with cross-domain enhancement.
+    """
+
+    def __init__(
+        self,
+        time_dim: int,
+        freq_dim: int,
+        fusion_dim: int,
+        dropout: float = 0.1,
+    ):
+        super().__init__()
+
+        # Cross-domain enhancement
+        self.time_to_freq = nn.Linear(time_dim, freq_dim)
+        self.freq_to_time = nn.Linear(freq_dim, time_dim)
+
+        # Gating mechanism
+        self.time_gate = nn.Sequential(nn.Linear(time_dim, 1), nn.Sigmoid())
+        self.freq_gate = nn.Sequential(nn.Linear(freq_dim, 1), nn.Sigmoid())
+
+        # Final fusion
+        self.fusion = nn.Sequential(
+            nn.Linear(time_dim + freq_dim, fusion_dim),
+            nn.LayerNorm(fusion_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(fusion_dim, fusion_dim),
+        )
 
 
 class MultiModal(Embedding):
@@ -94,6 +128,7 @@ class MultiModalPsd(Embedding):
         width_per_group: int = 64,
         stride_type: Optional[list[Literal["stride", "dilation"]]] = None,
         norm_layer: Optional[NormLayer] = None,
+        fusion: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -122,6 +157,14 @@ class MultiModalPsd(Embedding):
             norm_layer=norm_layer,
         )
 
+        if fusion:
+            # Fusion layer
+            self.fusion_layer = SimpleFusion(
+                time_dim=time_context_dim,
+                freq_dim=freq_context_dim,
+                fusion_dim=time_context_dim + freq_context_dim,
+            )
+
     def forward(self, X):
         strain, asds = X
 
@@ -135,10 +178,12 @@ class MultiModalPsd(Embedding):
         X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
 
         frequency_domain_embedded = self.freq_psd_resnet(X_fft)
-        embedding = torch.concat(
-            (time_domain_embedded, frequency_domain_embedded),
-            dim=1,
+
+        # Fusion instead of concatenation
+        embedding = self.fusion_layer(
+            time_domain_embedded, frequency_domain_embedded
         )
+
         return embedding
 
 
