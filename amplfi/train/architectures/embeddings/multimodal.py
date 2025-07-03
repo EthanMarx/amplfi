@@ -7,32 +7,31 @@ import torch.nn as nn
 from .base import Embedding
 from .transformer import Transformer
 
-
-class SimpleFusion(nn.Module):
+class GatedFusion(nn.Module):
     """
-    Simple and clean fusion layer for combining time and
-    frequency domain embeddings.
-    Uses gated fusion with cross-domain enhancement.
+    Fusion layer for combining time and frequency domain features intelligently
     """
 
     def __init__(
         self,
         time_dim: int,
         freq_dim: int,
-        fusion_dim: int,
-        dropout: float = 0.1,
+        fusion_dim: Optional[int] = None,
+        dropout: float = 0.0,
     ):
         super().__init__()
 
-        # Cross-domain enhancement
+        fusion_dim = fusion_dim or time_dim + freq_dim
+        # cross-domain enhancement
         self.time_to_freq = nn.Linear(time_dim, freq_dim)
         self.freq_to_time = nn.Linear(freq_dim, time_dim)
 
-        # Gating mechanism
+        # gating mechanism - controls how much time and frequency 
+        # content influence eachother on a per sample basis 
         self.time_gate = nn.Sequential(nn.Linear(time_dim, 1), nn.Sigmoid())
         self.freq_gate = nn.Sequential(nn.Linear(freq_dim, 1), nn.Sigmoid())
 
-        # Final fusion
+        # final fusion
         self.fusion = nn.Sequential(
             nn.Linear(time_dim + freq_dim, fusion_dim),
             nn.LayerNorm(fusion_dim),
@@ -42,10 +41,10 @@ class SimpleFusion(nn.Module):
         )
 
     def forward(self, time_embed, freq_embed):
-        # Cross-domain enhancement
         time_enhanced = time_embed + self.time_gate(
             time_embed
         ) * self.freq_to_time(freq_embed)
+        
         freq_enhanced = freq_embed + self.freq_gate(
             freq_embed
         ) * self.time_to_freq(time_embed)
@@ -72,83 +71,20 @@ class MultiModal(Embedding):
         width_per_group: int = 64,
         stride_type: Optional[list[Literal["stride", "dilation"]]] = None,
         norm_layer: Optional[NormLayer] = None,
+        asds: bool = False,
+        fusion: bool = False,
         **kwargs,
     ):
         """
-        MultiModal embedding network that embeds both time and frequency data.
-
-        We pass the data through their own ResNets defined by their layers
-        and context dims, then concatenate the output embeddings.
+        MultiModal embedding network that processes time, frequency, and possibly asd data.
         """
         super().__init__()
-        self.time_domain_resnet = ResNet1D(
-            in_channels=num_ifos,
-            layers=time_layers,
-            classes=time_context_dim,
-            kernel_size=time_kernel_size,
-            zero_init_residual=zero_init_residual,
-            groups=groups,
-            width_per_group=width_per_group,
-            stride_type=stride_type,
-            norm_layer=norm_layer,
-        )
-        self.frequency_domain_resnet = ResNet1D(
-            in_channels=int(num_ifos * 2),
-            layers=freq_layers,
-            classes=freq_context_dim,
-            kernel_size=freq_kernel_size,
-            zero_init_residual=zero_init_residual,
-            groups=groups,
-            width_per_group=width_per_group,
-            stride_type=stride_type,
-            norm_layer=norm_layer,
-        )
-
         # set the context dimension so
         # the flow can access it
         self.context_dim = time_context_dim + freq_context_dim
+        
+        self.asds = asds
 
-    def forward(self, X):
-        # unpack, ignoring asds
-        strain, _ = X
-        time_domain_embedded = self.time_domain_resnet(strain)
-        strain_fft = torch.fft.rfft(strain)
-        strain_fft = torch.cat((strain_fft.real, strain_fft.imag), dim=1)
-        frequency_domain_embedded = self.frequency_domain_resnet(strain_fft)
-
-        embedding = torch.concat(
-            (time_domain_embedded, frequency_domain_embedded), dim=1
-        )
-        return embedding
-
-
-class MultiModalPsd(Embedding):
-    """
-    MultiModal embedding network that embeds both time and frequency data.
-
-    We pass the data through their own ResNets defined by their layers
-    and context dims, then concatenate the output embeddings.
-    """
-
-    def __init__(
-        self,
-        num_ifos: int,
-        time_context_dim: int,
-        freq_context_dim: int,
-        time_layers: list[int],
-        freq_layers: list[int],
-        time_kernel_size: int = 3,
-        freq_kernel_size: int = 3,
-        zero_init_residual: bool = False,
-        groups: int = 1,
-        width_per_group: int = 64,
-        stride_type: Optional[list[Literal["stride", "dilation"]]] = None,
-        norm_layer: Optional[NormLayer] = None,
-        fusion: bool = True,
-        **kwargs,
-    ):
-        super().__init__()
-        self.context_dim = time_context_dim + freq_context_dim
         self.time_domain_resnet = ResNet1D(
             in_channels=num_ifos,
             layers=time_layers,
@@ -161,8 +97,10 @@ class MultiModalPsd(Embedding):
             norm_layer=norm_layer,
         )
 
-        self.freq_psd_resnet = ResNet1D(
-            in_channels=int(num_ifos * 3),
+        channels_per_ifo = 3 if self.asds else 2
+        
+        self.frequency_domain_resnet = ResNet1D(
+            in_channels=int(num_ifos * channels_per_ifo),
             layers=freq_layers,
             classes=freq_context_dim,
             kernel_size=freq_kernel_size,
@@ -174,28 +112,34 @@ class MultiModalPsd(Embedding):
         )
 
         if fusion:
-            # fusion layer
-            self.fusion_layer = SimpleFusion(
+            self.fusion_layer = GatedFusion(
                 time_dim=time_context_dim,
                 freq_dim=freq_context_dim,
                 fusion_dim=time_context_dim + freq_context_dim,
             )
+        else:
+            self.fusion_layer = lambda x, y: torch.concat((x, y), dim=1)
+
 
     def forward(self, X):
         strain, asds = X
 
-        asds *= 1e23
-        asds = asds.float()
-        inv_asds = 1 / asds
-
         time_domain_embedded = self.time_domain_resnet(strain)
+
+        # if asds is specified, append it to frequency domain data
         X_fft = torch.fft.rfft(strain)
-        X_fft = X_fft[..., -asds.shape[-1] :]
-        X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
+        if self.asds:
+            asds *= 1e23
+            asds = asds.float()
+            inv_asds = 1 / asds
+            X_fft = X_fft[..., -asds.shape[-1] :]
+            X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
+        else:
+            X_fft = torch.cat((X_fft.real, X_fft.imag), dim=1)
+        
+        frequency_domain_embedded = self.frequency_domain_resnet(X_fft)
 
-        frequency_domain_embedded = self.freq_psd_resnet(X_fft)
-
-        # Fusion instead of concatenation
+        # fusion instead (or concatenation)
         embedding = self.fusion_layer(
             time_domain_embedded, frequency_domain_embedded
         )
@@ -249,7 +193,19 @@ class FrequencyPsd(Embedding):
         return embedding
 
 
-class MultiModalPsdFreqTransformer(Embedding):
+    def forward(self, X):
+        strain, asds = X
+        time_domain_embedded = self.time_domain_resnet(strain)
+        frequency_domain_embedded = self.freq_domain_transformer(strain, asds)
+
+        # Fusion instead of concatenation
+        embedding = self.fusion_layer(
+            time_domain_embedded, frequency_domain_embedded
+        )
+
+        return embedding
+
+class MultiModalFreqTransformer(Embedding):
     """
     MultiModal embedding network that embeds both time and frequency data.
 
@@ -263,7 +219,10 @@ class MultiModalPsdFreqTransformer(Embedding):
         time_context_dim: int,
         freq_context_dim: int,
         time_layers: list[int],
-        freq_layers: list[int],
+        freq_layers: int = 4,
+        d_model: int = 32,
+        proj_dim: int = 512,
+        num_heads: int = 4,
         time_kernel_size: int = 3,
         zero_init_residual: bool = False,
         groups: int = 1,
@@ -288,22 +247,23 @@ class MultiModalPsdFreqTransformer(Embedding):
         )
 
         self.freq_domain_transformer = Transformer(
-            (num_ifos * 3),
+            num_ifos * 3,
+            4036,
+            proj_dim,
             freq_context_dim,
-            d_model=128,
-            num_heads=4,
-            dropout=0.0,
+            d_model=d_model,
+            num_heads=num_heads,
             num_layers=freq_layers,
-            max_len=673,
         )
 
         if fusion:
-            # fusion layer
-            self.fusion_layer = SimpleFusion(
+            self.fusion_layer = GatedFusion(
                 time_dim=time_context_dim,
                 freq_dim=freq_context_dim,
                 fusion_dim=time_context_dim + freq_context_dim,
             )
+        else:
+            self.fusion_layer = lambda x, y: torch.concat((x, y), dim=1)
 
     def forward(self, X):
         strain, asds = X
