@@ -79,8 +79,13 @@ class LigoSkymap(
     data_dir = PathParameter(
         description="Path to the directory containing the "
         "event sub directories."
-        "Each sub directory should contain "
-        "a posterior_samples.dat file."
+        "Each sub-directory combined with `sub_path` parameter below "
+        "should contain a posterior_samples.dat file."
+    )
+    sub_path = PathParameter(
+        description="Sub-path relative to each event directory to the "
+        "directory containing the posterior_samples.dat file.",
+        default="",
     )
     ligo_skymap_args = luigi.OptionalListParameter(
         description="Additional command line style arguments"
@@ -101,6 +106,8 @@ class LigoSkymap(
         branch_map = {}
         subdirs = [x for x in self.data_dir.iterdir() if x.is_dir()]
         for i, subdir in enumerate(subdirs):
+            if self.sub_path:
+                subdir = subdir / self.sub_path
             branch_map[i] = subdir / "posterior_samples.dat"
         return branch_map
 
