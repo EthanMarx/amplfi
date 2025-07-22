@@ -99,11 +99,9 @@ class LigoSkymap(
 
     def create_branch_map(self):
         branch_map = {}
-        num = len([x for x in self.data_dir.iterdir() if x.is_dir()])
-        for idx in range(num):
-            branch_map[idx] = (
-                self.data_dir / str(idx) / "posterior_samples.dat"
-            )
+        subdirs = [x for x in self.data_dir.iterdir() if x.is_dir()]
+        for i, subdir in enumerate(subdirs):
+            branch_map[i] = subdir / "posterior_samples.dat"
         return branch_map
 
     def output(self):
