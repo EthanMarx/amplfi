@@ -101,3 +101,44 @@ class PsdEstimator(torch.nn.Module):
         self.spectral_density.to(device=background.device)
         psds = self.spectral_density(background.double())
         return X, psds
+
+
+class Decimator(torch.nn.Module):
+    """
+    Downsample a timeseries via decimation.
+
+    Args:
+        initial_sample_rate: 
+            The sample of rate of the initial
+            timeseries being downsampled
+        decimate_schedule:
+            A list of tuples (start, end, target_sample_rate)
+            where start and end correspond to the portion of 
+            the original timeseries in seconds, and target_sample_rate
+            corresponds to sample rate that portion will be resampled to. 
+            Note that consecutive start and ends should match.
+    """
+    def __init__(
+        self, 
+        initial_sample_rate: float,
+        decimate_schedule: list[tuple[float, float, float]],
+    ):
+
+        super().__init__()
+        self.decimate_schedule = decimate_schedule
+        self.initial_sample_rate = initial_sample_rate
+
+        indices = self.build_indices() 
+        self.register_buffer("indices", indices)
+
+    def build_indices(self):
+        start, end, target_sr = self.decimate_schedule.T
+        samples = ((end - start) * target_sr).long()
+        rel_idx = torch.arange(samples.max()).expand(len(samples), -1)
+        mask = rel_idx < samples.unsqueeze(1)
+        abs_idx = (start.unsqueeze(1) * self.initial_sample_rate + rel_idx * (self.initial_sample_rate / target_sr.unsqueeze(1))).long()
+        return abs_idx[mask]
+
+    def forward(self, X):
+        return X.index_select(dim=-1, index=self.indices)
+

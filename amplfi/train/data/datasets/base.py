@@ -9,7 +9,7 @@ import torch
 from ml4gw.dataloading import Hdf5TimeSeriesDataset, InMemoryDataset
 from ml4gw.transforms import ChannelWiseScaler, Whiten
 
-from ...augmentations import PsdEstimator, WaveformProjector
+from ...augmentations import PsdEstimator, WaveformProjector, Decimator
 from ..utils import fs as fs_utils
 from ..utils.utils import ZippedDataset
 from amplfi.train.prior import ParameterTransformer
@@ -113,6 +113,7 @@ class AmplfiDataset(pl.LightningDataModule):
         batch_size: int,
         ifos: List[str],
         waveform_sampler: WaveformSampler,
+        decimator: Optional[Decimator] = None,
         parameter_transformer: Optional[ParameterTransformer] = None,
         fftlength: Optional[int] = None,
         train_val_range: Optional[tuple[float, float]] = None,
@@ -136,7 +137,7 @@ class AmplfiDataset(pl.LightningDataModule):
 
         self.dec, self.psi, self.phi = dec, psi, phi
         self.parameter_transformer = parameter_transformer or (lambda x: x)
-
+        self.decimator = decimator
         # generate our local node data directory
         # if our specified data source is remote
         self.data_dir = fs_utils.get_data_dir(self.hparams.data_dir)
@@ -511,7 +512,7 @@ class AmplfiDataset(pl.LightningDataModule):
         if self.trainer.training:
             [batch] = batch
             cross, plus, parameters = self.waveform_sampler.sample(batch)
-            strain, asds, parameters, snrs = self.inject(
+            *strain, asds, parameters, snrs = self.inject(
                 batch, cross, plus, parameters
             )
 
@@ -524,7 +525,7 @@ class AmplfiDataset(pl.LightningDataModule):
                 if k not in ["dec", "psi", "phi"]
             ]
             parameters = {k: parameters[:, i] for i, k in enumerate(keys)}
-            strain, asds, parameters, snrs = self.inject(
+            *strain, asds, parameters, snrs = self.inject(
                 background, cross, plus, parameters
             )
 
@@ -536,11 +537,11 @@ class AmplfiDataset(pl.LightningDataModule):
                 if k not in ["dec", "psi", "phi"]
             ]
             parameters = {k: parameters[:, i] for i, k in enumerate(keys)}
-            strain, asds, parameters, snrs = self.inject(
+            *strain, asds, parameters, snrs = self.inject(
                 background, cross, plus, parameters
             )
 
-        return strain, asds, parameters, snrs
+        return *strain, asds, parameters, snrs
 
     # ================================================ #
     # Dataloaders used by lightning

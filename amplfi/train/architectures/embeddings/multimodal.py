@@ -3,7 +3,7 @@ from typing import Literal, Optional
 import torch
 from ml4gw.nn.norm import NormLayer
 from ml4gw.nn.resnet.resnet_1d import ResNet1D
-
+from amplfi.train.augmentations import Decimator
 from .base import Embedding
 
 
@@ -54,6 +54,10 @@ class MultiModal(Embedding):
             norm_layer=norm_layer,
         )
 
+        self.decimate = Decimator(
+            initial_sample_rate=2048,
+            decimate_schedule=[(0, 2, 512), (2, 2.4, 1024), (2.4, 3, 2048)]
+        )
         # set the context dimension so
         # the flow can access it
         self.context_dim = time_context_dim + freq_context_dim
@@ -61,9 +65,13 @@ class MultiModal(Embedding):
     def forward(self, X):
         # unpack, ignoring asds
         strain, _ = X
-        time_domain_embedded = self.time_domain_resnet(strain)
-        strain_fft = torch.fft.rfft(strain)
+        strain_fft = torch.fft.rfft(strain.clone())
         strain_fft = torch.cat((strain_fft.real, strain_fft.imag), dim=1)
+
+        print(strain.shape)
+        strain = self.decimate(strain) 
+        print(strain.shape)
+        time_domain_embedded = self.time_domain_resnet(strain)
         frequency_domain_embedded = self.frequency_domain_resnet(strain_fft)
 
         embedding = torch.concat(
@@ -122,6 +130,10 @@ class MultiModalPsd(Embedding):
             norm_layer=norm_layer,
         )
 
+        self.decimate = Decimator(
+            initial_sample_rate=2048,
+            decimate_schedule=torch.tensor([(0, 2, 512), (2, 2.4, 1024), (2.4, 3, 2048)])
+        )
     def forward(self, X):
         strain, asds = X
 
@@ -129,11 +141,12 @@ class MultiModalPsd(Embedding):
         asds = asds.float()
         inv_asds = 1 / asds
 
-        time_domain_embedded = self.time_domain_resnet(strain)
-        X_fft = torch.fft.rfft(strain)
+        X_fft = torch.fft.rfft(strain.clone())
         X_fft = X_fft[..., -asds.shape[-1] :]
         X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
 
+        strain = self.decimate(strain)
+        time_domain_embedded = self.time_domain_resnet(strain)
         frequency_domain_embedded = self.freq_psd_resnet(X_fft)
         embedding = torch.concat(
             (time_domain_embedded, frequency_domain_embedded),

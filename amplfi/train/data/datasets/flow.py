@@ -63,4 +63,18 @@ class FlowDataset(AmplfiDataset):
         psds = psds[:, :, mask]
         asds = torch.sqrt(psds)
 
+        X_fft = None 
+        if self.hparams.needs_fft:
+            X_fft = torch.fft.rfft(X.clone())
+            X_fft = X_fft[..., -asds.shape[-1] :]
+            X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
+            # decimate if specified
+            if self.decimator is not None:
+                X = self.decimator(X)
+            return X, X_fft, asds, parameters, snrs
+
+        # decimate if specified
+        if self.decimator is not None:
+            X = self.decimator(X)
+        
         return X, asds, parameters, snrs
