@@ -63,6 +63,7 @@ class FlowDataset(AmplfiDataset):
         psds = psds[:, :, mask]
         asds = torch.sqrt(psds)
 
+        """
         X_fft = None 
         if self.hparams.needs_fft:
             X_fft = torch.fft.rfft(X.clone())
@@ -76,5 +77,5 @@ class FlowDataset(AmplfiDataset):
         # decimate if specified
         if self.decimator is not None:
             X = self.decimator(X)
-        
+        """
         return X, asds, parameters, snrs

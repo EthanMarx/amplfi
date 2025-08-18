@@ -130,10 +130,11 @@ class MultiModalPsd(Embedding):
             norm_layer=norm_layer,
         )
 
-        self.decimate = Decimator(
+        self.decimator = Decimator(
             initial_sample_rate=2048,
-            decimate_schedule=torch.tensor([(0, 2, 512), (2, 2.4, 1024), (2.4, 3, 2048)])
+            decimate_schedule=torch.tensor([(0, 1.3, 512), (1.3, 2.2, 1024), (2.2, 3, 2048)])
         )
+
     def forward(self, X):
         strain, asds = X
 
@@ -145,7 +146,7 @@ class MultiModalPsd(Embedding):
         X_fft = X_fft[..., -asds.shape[-1] :]
         X_fft = torch.cat((X_fft.real, X_fft.imag, inv_asds), dim=1)
 
-        strain = self.decimate(strain)
+        strain = self.decimator(strain)
         time_domain_embedded = self.time_domain_resnet(strain)
         frequency_domain_embedded = self.freq_psd_resnet(X_fft)
         embedding = torch.concat(

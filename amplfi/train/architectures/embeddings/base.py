@@ -16,7 +16,6 @@ class Embedding(torch.nn.Module):
     the above behavior more explicitly in the future
     """
 
-    def __init__(self, needs_fft: bool, *args, **kwargs):
+    def __init__(self,  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.context_dim = None
-        self.needs_fft = needs_fft

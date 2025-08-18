@@ -51,11 +51,11 @@ class AmplfiBaseCLI(LightningCLI):
             apply_on="parse",
         )
 
-        parser.link_arguments(
-            "model.init_args.arch.init_args.embedding_net.init_args.needs_fft"
-            "data.init_args.needs_fft",
-            apply_on="parse",
-        )
+        #parser.link_arguments(
+        #    "model.init_args.arch.init_args.embedding_net.init_args.needs_fft"
+        #    "data.init_args.needs_fft",
+        #    apply_on="parse",
+        #)
         
         parser.link_arguments(
             "seed_everything",
